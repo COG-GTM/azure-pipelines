@@ -1,0 +1,243 @@
+# risk-batch-ci CI workflow
+# Migrated from: services/risk-batch/azure-pipelines.yml (ADO pipeline ID 104)
+# Stack: Python 3.11 (pytest)
+# Original template source: shared-ci-platform @ staging/preprod
+#
+# ADO templates inlined (read from origin/staging/preprod):
+#   - templates/build/build-python.yml      (retry-enabled variant: testRetryCount + pytest-rerunfailures)
+#   - templates/test/run-tests.yml          (testFramework: pytest)
+#   - templates/release/release-standard.yml (environment: dev)
+#
+# Mapping document: docs/migration/risk-batch-ci-ado-to-gha-mapping.md
+# NOTE: services/risk-batch/pipeline-fragments/build-python-local.yml is an
+#       unreferenced local fork and is intentionally NOT migrated.
+name: risk-batch-ci
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - 'services/risk-batch/**'
+  pull_request:
+    branches:
+      - main
+    paths:
+      - 'services/risk-batch/**'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+# --- mapped from: ADO `variables:` ---
+env:
+  ARTIFACT_NAME: risk-batch-dist
+  PYTHON_VERSION: '3.11'
+  REQUIREMENTS_FILE: services/risk-batch/requirements.txt
+  TEST_RETRY_COUNT: '3'
+  # $(Build.ArtifactStagingDirectory)
+  BUILD_ARTIFACTSTAGINGDIRECTORY: ${{ github.workspace }}/.staging
+  # ADO env-var shims consumed unmodified by build-tools/scripts/*.py
+  BUILD_SOURCEBRANCH: ${{ github.ref }}
+  BUILD_SOURCEVERSION: ${{ github.sha }}
+  BUILD_BUILDID: ${{ github.run_id }}
+  BUILD_DEFINITIONNAME: ${{ github.workflow }}
+  BUILD_REQUESTEDFOR: ${{ github.actor }}
+  # AGENT_NAME / AGENT_OS need the `runner` context (step-level only); set on the helper-script steps.
+  PIPELINE_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+
+concurrency:
+  group: risk-batch-ci-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+jobs:
+  # ===========================================================================
+  # ADO stage: Build ("Build risk-batch")
+  #   job: build
+  #     - template: templates/build/build-python.yml@templates
+  #     - template: templates/test/run-tests.yml@templates
+  # ===========================================================================
+  build:
+    name: Build risk-batch
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      # --- mapped from: UsePythonVersion@0 (build-python.yml) ---
+      - name: Use Python ${{ env.PYTHON_VERSION }}
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+
+      # $(Build.ArtifactStagingDirectory) exists implicitly on ADO agents; GHA runners need it created.
+      - name: Create artifact staging directory
+        run: mkdir -p "$BUILD_ARTIFACTSTAGINGDIRECTORY"
+
+      # --- mapped from: script 'Install dependencies' (build-python.yml) ---
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip setuptools wheel
+          pip install -r "$REQUIREMENTS_FILE"
+
+      # --- mapped from: script 'Run linting checks' (build-python.yml, enableLinting=true default) ---
+      - name: Run linting checks
+        run: |
+          pip install flake8 black mypy
+          flake8 src/ --max-line-length=120
+          black --check src/
+
+      # --- mapped from: script 'Run tests with coverage (retry-enabled)' (build-python.yml, runTests=true, testRetryCount=3) ---
+      # Two-level retry preserved from staging/preprod:
+      #   inner:  pytest-rerunfailures --reruns 2 --reruns-delay 5 (per-test reruns)
+      #   outer:  up to TEST_RETRY_COUNT whole-suite attempts with a 10s pause
+      - name: Run tests with coverage (retry-enabled)
+        run: |
+          pip install pytest pytest-cov pytest-junitxml pytest-rerunfailures
+          RETRY=0
+          MAX_RETRY="$TEST_RETRY_COUNT"
+          until pytest tests/ \
+            --junitxml="$BUILD_ARTIFACTSTAGINGDIRECTORY/test-results.xml" \
+            --cov=src/ \
+            --cov-report=xml:"$BUILD_ARTIFACTSTAGINGDIRECTORY/coverage.xml" \
+            --reruns 2 --reruns-delay 5; do
+            RETRY=$((RETRY + 1))
+            if [ "$RETRY" -ge "$MAX_RETRY" ]; then
+              echo "Tests failed after $MAX_RETRY retries"
+              exit 1
+            fi
+            echo "Test retry $RETRY of $MAX_RETRY..."
+            sleep 10
+          done
+
+      # --- mapped from: PublishTestResults@2 'Publish test results' (build-python.yml, condition: always()) ---
+      # GHA has no native test-results tab; results are uploaded as an artifact.
+      - name: Publish test results (build)
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: risk-batch-build-test-results
+          path: ${{ env.BUILD_ARTIFACTSTAGINGDIRECTORY }}/test-results.xml
+          if-no-files-found: warn
+
+      # --- mapped from: script 'Build distribution' (build-python.yml, publishArtifacts=true) ---
+      - name: Build distribution
+        run: |
+          python setup.py sdist bdist_wheel
+          cp -r dist/ "$BUILD_ARTIFACTSTAGINGDIRECTORY/dist/"
+
+      # --- mapped from: PublishBuildArtifacts@1 'Upload artifacts' (build-python.yml) ---
+      - name: Upload artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ env.ARTIFACT_NAME }}
+          path: ${{ env.BUILD_ARTIFACTSTAGINGDIRECTORY }}
+          if-no-files-found: error
+
+      # --- mapped from: script 'Register artifact in artifact-registry' (build-python.yml) ---
+      # Guarded to push events so PR builds never register artifacts.
+      - name: Register artifact in Artifactory (artifact-registry)
+        if: github.event_name == 'push'
+        env:
+          AGENT_NAME: ${{ runner.name }}
+        run: |
+          python build-tools/scripts/publish_artifact.py \
+            --name "$ARTIFACT_NAME" \
+            --registry artifact-registry \
+            --build-id "$BUILD_BUILDID"
+
+      # --- mapped from: script 'Stamp preprod validation marker' (build-python.yml, staging/preprod only) ---
+      - name: Stamp preprod validation marker
+        run: |
+          echo "Preprod artifact validation stamp"
+          echo "$BUILD_BUILDID" > "$BUILD_ARTIFACTSTAGINGDIRECTORY/preprod-stamp.txt"
+
+      # --- mapped from: script 'Create test results directory' (run-tests.yml) ---
+      - name: Create test results directory
+        run: mkdir -p "$BUILD_ARTIFACTSTAGINGDIRECTORY/test-results"
+
+      # --- mapped from: script 'Run pytest' (run-tests.yml, testFramework=pytest) ---
+      # Second, non-retrying pytest pass — preserved as-is from ADO (pre-existing duplication).
+      - name: Run pytest
+        run: |
+          pytest tests/ \
+            --junitxml="$BUILD_ARTIFACTSTAGINGDIRECTORY/test-results/results.xml" \
+            --tb=short
+
+      # --- mapped from: PublishTestResults@2 'Publish test results' (run-tests.yml, condition: always()) ---
+      - name: Publish test results (run-tests)
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: risk-batch-test-results
+          path: ${{ env.BUILD_ARTIFACTSTAGINGDIRECTORY }}/test-results
+          if-no-files-found: warn
+
+      # --- mapped from: script 'Normalize test results' (run-tests.yml, condition: always()) ---
+      - name: Normalize test results
+        if: always()
+        run: |
+          python build-tools/scripts/normalize_test_results.py \
+            --input-dir "$BUILD_ARTIFACTSTAGINGDIRECTORY/test-results" \
+            --output "$BUILD_ARTIFACTSTAGINGDIRECTORY/normalized-results.json"
+
+  # ===========================================================================
+  # ADO stage: Release ("Deploy to dev") -> release-standard.yml stage Deploy_dev
+  #   deployment job: deploy (environment: dev, strategy: runOnce)
+  # ===========================================================================
+  deploy-dev:
+    name: Deploy to dev
+    needs: build
+    # ADO ran this on every successful Build of a `main` push (the only CI trigger).
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    # --- mapped from: deployment.environment: dev ---
+    environment: dev
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      # Fresh runner: staging directory used by the helper scripts must exist.
+      - name: Create artifact staging directory
+        run: mkdir -p "$BUILD_ARTIFACTSTAGINGDIRECTORY"
+
+      # --- mapped from: download: current / artifact: risk-batch-dist ---
+      - name: Download risk-batch-dist
+        uses: actions/download-artifact@v4
+        with:
+          name: ${{ env.ARTIFACT_NAME }}
+          path: ${{ runner.temp }}/artifacts/${{ env.ARTIFACT_NAME }}
+
+      # --- mapped from: script 'Execute deployment' (release-standard.yml, deployStrategy=rolling) ---
+      - name: Execute deployment
+        run: |
+          echo "Deploying $ARTIFACT_NAME to dev"
+          echo "Strategy: rolling"
+
+      # --- mapped from: script 'Notify release-orchestrator' (release-standard.yml, notifyReleaseOrchestrator=true) ---
+      - name: Notify release-orchestrator (D2)
+        run: |
+          python build-tools/scripts/notify_release_orchestrator.py \
+            --service "$ARTIFACT_NAME" \
+            --env dev \
+            --build-id "$BUILD_BUILDID" \
+            --status success
+
+      # --- mapped from: script 'Generate compliance attestation' (release-standard.yml) ---
+      - name: Generate compliance attestation
+        env:
+          AGENT_OS: ${{ runner.os }}
+        run: |
+          python build-tools/scripts/generate_attestation.py \
+            --artifact "$ARTIFACT_NAME" \
+            --env dev \
+            --build-id "$BUILD_BUILDID"
+
+      # Attestation/manifest outputs were only on the ADO agent disk; keep them retrievable in GHA.
+      - name: Upload deployment attestation
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: risk-batch-dev-attestation
+          path: ${{ env.BUILD_ARTIFACTSTAGINGDIRECTORY }}
+          if-no-files-found: warn

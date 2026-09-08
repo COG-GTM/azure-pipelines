@@ -1,0 +1,11 @@
+{
+  "service": "risk-batch",
+  "expected_test_suites": 1,
+  "expected_total_tests": 0,
+  "minimum_pass_rate": 1.0,
+  "expected_coverage_percent": 0,
+  "frameworks": ["pytest"],
+  "last_updated": "2026-09-08",
+  "updated_by": "migration-placeholder",
+  "note": "PLACEHOLDER. risk-batch source/tests are not in this repo; team-quant must populate counts from ADO pipeline 104 run history before cut-over."
+}
