@@ -1,0 +1,108 @@
+# ops-control-plane CI workflow
+# Migrated from: services/ops-control-plane/azure-pipelines.yml (ADO pipeline ID 109)
+# Stack: Go 1.22
+# Original template source: none — Category 4, fully inline ADO YAML
+#
+# ADO templates inlined:
+#   - (none; the ADO pipeline consumed no shared or alt templates)
+#
+# Mapping document: docs/migration/ops-control-plane-ci-ado-to-gha-mapping.md
+name: ops-control-plane-ci
+
+on:
+  # --- mapped from: trigger.branches.include [main] + trigger.paths.include ---
+  push:
+    branches:
+      - main
+    paths:
+      - 'services/ops-control-plane/**'
+      - '.github/workflows/ops-control-plane-ci.yml'
+  # Added during migration: the ADO pipeline had no PR trigger.
+  pull_request:
+    branches:
+      - main
+    paths:
+      - 'services/ops-control-plane/**'
+      - '.github/workflows/ops-control-plane-ci.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+# --- mapped from: variables ---
+env:
+  GO_VERSION: '1.22'
+  GOPATH: ${{ github.workspace }}/go
+  GOBIN: ${{ github.workspace }}/go/bin
+  MODULE_PATH: services/ops-control-plane
+  ARTIFACT_NAME: ops-control-plane-binary
+
+concurrency:
+  group: ops-control-plane-ci-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+jobs:
+  # --- mapped from: stage Build / job build_go ('Go build and test') ---
+  build:
+    name: Build ops-control-plane
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: services/ops-control-plane
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      # --- mapped from: GoTool@0 (version: '1.22') ---
+      - name: Install Go 1.22
+        uses: actions/setup-go@v5
+        with:
+          go-version: ${{ env.GO_VERSION }}
+          cache-dependency-path: services/ops-control-plane/go.sum
+
+      # --- mapped from: script 'Download modules' ---
+      - name: Download modules
+        run: |
+          go mod download
+          go mod verify
+
+      # --- mapped from: script 'Vet' ---
+      - name: Vet
+        run: go vet ./...
+
+      # --- mapped from: script 'Run tests' ---
+      - name: Run tests
+        run: go test ./... -v -coverprofile=coverage.out
+
+      # --- mapped from: script 'Build binary' ---
+      - name: Build binary
+        env:
+          # $(Build.ArtifactStagingDirectory) shim
+          BUILD_ARTIFACTSTAGINGDIRECTORY: ${{ runner.temp }}/staging
+        run: |
+          mkdir -p "$BUILD_ARTIFACTSTAGINGDIRECTORY"
+          CGO_ENABLED=0 GOOS=linux GOARCH=amd64 \
+            go build -ldflags="-s -w" -o "$BUILD_ARTIFACTSTAGINGDIRECTORY/ops-control-plane" ./cmd/server
+
+      # --- mapped from: PublishBuildArtifacts@1 (artifactName: ops-control-plane-binary) ---
+      - name: Publish binary
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ env.ARTIFACT_NAME }}
+          path: ${{ runner.temp }}/staging
+          if-no-files-found: error
+
+      # Not mapped from any ADO step. The ADO pipeline performs no Artifactory
+      # registration, D2 notification, or compliance attestation, and the attached
+      # ops-infra-credentials / ContainerRegistry-ACR bindings are unused by its YAML.
+      # This step only records that fact in the run summary; see the mapping doc.
+      - name: Integration notes (no Artifactory, D2 notify, or compliance attestation in ADO source)
+        if: always()
+        run: |
+          {
+            echo "### ops-control-plane-ci integration notes"
+            echo "- Artifactory registration: not present in ADO pipeline 109 (nothing migrated)"
+            echo "- D2 notify: not present in ADO pipeline 109 (nothing migrated)"
+            echo "- Compliance attestation: not present in ADO pipeline 109 (nothing migrated)"
+            echo "- ops-infra-credentials (K8s) and ContainerRegistry-ACR are bound in ADO but unused by YAML; see docs/migration/ops-control-plane-ci-ado-to-gha-mapping.md"
+          } >> "$GITHUB_STEP_SUMMARY"

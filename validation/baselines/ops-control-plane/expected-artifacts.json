@@ -1,0 +1,13 @@
+{
+  "artifact_name": "ops-control-plane-binary",
+  "service": "ops-control-plane",
+  "expected_file_count": 1,
+  "expected_file_types": ["(static linux/amd64 ELF binary, no extension)"],
+  "expected_contents": [
+    "ops-control-plane"
+  ],
+  "min_artifact_size_mb": 5,
+  "max_artifact_size_mb": 60,
+  "last_updated": "2026-09-08",
+  "updated_by": "ado-migration (provisional — derived from services/ops-control-plane/azure-pipelines.yml; Go source is not in this repo, so sizes are estimates for a stripped CGO_ENABLED=0 Go 1.22 server binary. platform-team to confirm against ADO build 98100.)"
+}
