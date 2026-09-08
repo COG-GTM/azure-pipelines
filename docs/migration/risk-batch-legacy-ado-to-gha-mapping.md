@@ -38,7 +38,7 @@ All paths are relative to `$(Build.SourcesDirectory)` (repository root).
 | `trigger: none` (CI disabled) | — | Preserved: no `on.push`. |
 | Manual queue | `workflow_dispatch` with inputs `pythonVersion` (default `3.9`) and `reason` | `reason` is free text so the caller can identify itself. |
 | **External downstream trigger (caller unknown)** | `repository_dispatch: types: [risk-batch-legacy]` | **Open question** — proposed replacement. The downstream job would `POST /repos/{owner}/{repo}/dispatches` with `event_type: risk-batch-legacy`; optional `client_payload.pythonVersion`. Only valid if the external caller can be identified and updated. |
-| — | `pull_request` on `main`, paths limited to this workflow, the legacy ADO YAML and the legacy template | Not in ADO. Added per playbook (and required by `validate-migration`'s trigger check). Scoped so risk-batch source changes do **not** trigger it — it lints the migration itself, nothing more. |
+| — | `pull_request` on `main`, paths limited to this workflow, the legacy ADO YAML and the legacy template | Not in ADO. Added per playbook (and required by `validate-migration`'s trigger check). Scoped so risk-batch source changes do **not** trigger it. The `build` job is skipped on `pull_request` (`if: github.event_name != 'pull_request'`) because the risk-batch source tree is not in this repo; only `parity-notes` runs, and `validate-migration` lints the file. |
 
 ## Stage / job mapping
 
@@ -79,8 +79,9 @@ invoked here, so **no `build-tools/scripts/*.py` changes were needed**.
 
 ## Condition mapping
 
-ADO has no stage/step conditions. GHA adds `if: always()` on the test-output upload and on
-`parity-notes` (so the trigger audit is recorded even when the build fails).
+ADO has no stage/step conditions. GHA adds `if: github.event_name != 'pull_request'` on `build`
+(see trigger mapping), `if: always()` on the test-output upload and on `parity-notes` (so the
+trigger audit is recorded even when the build fails or is skipped).
 
 ## Integration points
 

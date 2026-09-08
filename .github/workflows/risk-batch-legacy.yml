@@ -62,6 +62,8 @@ jobs:
   # --- mapped from: stage Build / job legacy_build ---
   build:
     name: Build (legacy_build)
+    # pull_request only validates this file; the risk-batch source tree is not in this repo.
+    if: github.event_name != 'pull_request'
     # --- mapped from: pool vmImage ubuntu-20.04 (image retired on hosted runners) ---
     runs-on: ubuntu-latest
     steps:
