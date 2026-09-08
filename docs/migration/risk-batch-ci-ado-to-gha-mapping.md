@@ -77,7 +77,7 @@ ADO MCP verification (`pipeline_get_pipeline` / `pipeline_preview_pipeline_yaml`
 | `${{ parameters.pythonVersion }}` | `env.PYTHON_VERSION` | |
 | `${{ parameters.requirementsFile }}` | `env.REQUIREMENTS_FILE` | |
 | `${{ parameters.testRetryCount }}` (3) | `env.TEST_RETRY_COUNT` | |
-| `$(Build.ArtifactStagingDirectory)` | `env.BUILD_ARTIFACTSTAGINGDIRECTORY` = `${{ github.workspace }}/.staging` | also read directly by `publish_artifact.py` / `generate_attestation.py` |
+| `$(Build.ArtifactStagingDirectory)` | `env.BUILD_ARTIFACTSTAGINGDIRECTORY` = `${{ github.workspace }}/staging` | also read directly by `publish_artifact.py` / `generate_attestation.py` |
 | `$(Build.SourcesDirectory)` | `${{ github.workspace }}` (cwd) | |
 | `$(Build.BuildId)` | `BUILD_BUILDID` = `${{ github.run_id }}` | |
 | `$(Build.SourceBranch)` | `BUILD_SOURCEBRANCH` = `${{ github.ref }}` | |

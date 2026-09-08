@@ -36,7 +36,7 @@ env:
   REQUIREMENTS_FILE: services/risk-batch/requirements.txt
   TEST_RETRY_COUNT: '3'
   # $(Build.ArtifactStagingDirectory)
-  BUILD_ARTIFACTSTAGINGDIRECTORY: ${{ github.workspace }}/.staging
+  BUILD_ARTIFACTSTAGINGDIRECTORY: ${{ github.workspace }}/staging
   # ADO env-var shims consumed unmodified by build-tools/scripts/*.py
   BUILD_SOURCEBRANCH: ${{ github.ref }}
   BUILD_SOURCEVERSION: ${{ github.sha }}
