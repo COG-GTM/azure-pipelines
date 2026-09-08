@@ -65,7 +65,7 @@ jobs:
             echo "has_pom=true" >> "$GITHUB_OUTPUT"
           else
             echo "has_pom=false" >> "$GITHUB_OUTPUT"
-            echo "No Maven project found at $SERVICE_DIR/pom.xml; skipping Maven build."
+            echo "::warning::No Maven project found at $SERVICE_DIR/pom.xml; skipping build, artifact upload and deployment."
           fi
 
       # --- mapped from: JavaToolInstaller@0 (versionSpec=17, x64, PreInstalled) ---
