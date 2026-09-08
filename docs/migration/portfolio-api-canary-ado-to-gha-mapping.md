@@ -87,7 +87,7 @@ exited on start-up). Verification fell back to `docs/samples/ado-api-responses.j
 |---|---|---|---|
 | — | (implicit checkout) | `actions/checkout@v4` | |
 | — | compile-time `${{ if eq(parameters.templateBranch, …) }}` | `Resolve template variant` (`run`, outputs `maven_goals`, `registry`) | Runtime `case` replaces compile-time template selection. Unknown value fails the job. |
-| 1 | `JavaToolInstaller@0` (PreInstalled 17 x64) | `actions/setup-java@v4` `distribution: temurin`, `java-version: 17`, `architecture: x64`, `cache: maven` | ADO "PreInstalled" is whatever JDK 17 the hosted image ships (Temurin on ubuntu-latest). Maven cache is additive. |
+| 1 | `JavaToolInstaller@0` (PreInstalled 17 x64) | `actions/setup-java@v4` `distribution: temurin`, `java-version: 17`, `architecture: x64` | ADO "PreInstalled" is whatever JDK 17 the hosted image ships (Temurin on ubuntu-latest). No Maven cache, matching ADO. |
 | 2 | `Maven@4` | `mvn -f pom.xml -B -DskipTests=false <goals>` | `goals` is variant-specific (§1.1). Maven is preinstalled on `ubuntu-latest` as on ADO hosted agents. |
 | 2 | `Maven@4` `publishJUnitResults: true`, `testResultsFiles: **/surefire-reports/TEST-*.xml` | `Collect JUnit test results` (`find . -path '*/surefire-reports/TEST-*.xml'`) + `Upload JUnit test results` (`actions/upload-artifact@v4`, `if: always()`) | `**` glob → `find` (GHA bash has no globstar). GHA has no native test tab — results are an artifact. |
 | 3 | `script` "Stage build artifacts" | `Stage build artifacts` | Adds `mkdir -p "$STAGING_DIR"` (fresh runner). Same `\|\| true` semantics. |
@@ -151,8 +151,8 @@ The script is **unchanged**; it reads these ADO-named variables, which the step 
    `dorny/test-reporter@v1` if a Checks-tab view is wanted.
 4. **`PreInstalled` JDK → Temurin.** ADO used whichever JDK 17 the hosted image ships;
    `setup-java` pins Temurin 17. Vendor could differ from the ADO image.
-5. **Maven cache** (`cache: maven`) is new; harmless, but the `master`/`staging/*` variants already
-   skip `clean`, so a warm cache plus a reused `target/` is slightly *more* incremental than ADO.
+5. **JUnit report layout**: reports are collected with `cp --parents`, so multi-module builds keep
+   `<module>/target/surefire-reports/TEST-*.xml` paths instead of colliding in one flat directory.
 6. **Variant is a runtime switch, not the real template branch.** ADO compiled the template from the
    selected branch; GHA emulates the two observed differences. If a template branch changes in a way
    that is not `mavenGoal`/registry, the workflow must be updated (or — preferably — the branch

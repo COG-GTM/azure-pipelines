@@ -93,7 +93,6 @@ jobs:
           distribution: temurin
           java-version: ${{ env.JDK_VERSION }}
           architecture: x64
-          cache: maven
 
       # --- mapped from: Maven@4 (mavenPomFile pom.xml, goals, options, publishJUnitResults true) ---
       - name: Maven ${{ steps.variant.outputs.maven_goals }}
@@ -106,7 +105,7 @@ jobs:
         if: always()
         run: |
           mkdir -p "$RUNNER_TEMP/test-results"
-          find . -path '*/surefire-reports/TEST-*.xml' -type f -exec cp {} "$RUNNER_TEMP/test-results/" \;
+          find . -path '*/surefire-reports/TEST-*.xml' -type f -exec cp --parents {} "$RUNNER_TEMP/test-results/" \;
           echo "Collected $(find "$RUNNER_TEMP/test-results" -type f | wc -l) JUnit report file(s)"
 
       - name: Upload JUnit test results
