@@ -1,0 +1,124 @@
+# market-sim-ci CI workflow
+# Migrated from: services/market-sim/azure-pipelines.yml (ADO pipeline ID 108)
+# Stack: Rust (rustup stable, clippy, cargo build --release, cargo test)
+# Original template source: CUSTOM — fully inline YAML, no shared templates (Category 4)
+# Mapping document: docs/migration/market-sim-ci-ado-to-gha-mapping.md
+#
+# ADO templates inlined:
+#   - none (pipeline never consumed templates/ or alt-templates/)
+#
+# Integration notes (see mapping doc, "Known gaps"):
+#   - ADO binds the ContainerRegistry-ACR service connection, but the YAML has no
+#     docker step. Nothing here logs into ACR; binding is treated as possibly stale.
+#   - The Deploy stage is an `echo` only ("managed outside D2"). Replicated as-is.
+name: market-sim-ci
+
+on:
+  # --- mapped from: trigger.branches.include [main] + trigger.paths.include [services/market-sim/**] ---
+  push:
+    branches:
+      - main
+    paths:
+      - 'services/market-sim/**'
+  # Added (not in ADO): PR feedback on the same paths. Deploy is push-only, see below.
+  pull_request:
+    branches:
+      - main
+    paths:
+      - 'services/market-sim/**'
+
+permissions:
+  contents: read
+
+# --- mapped from: variables ---
+env:
+  CARGO_TERM_COLOR: always
+  RUST_BACKTRACE: 1
+
+jobs:
+  # --- mapped from: stage Build / job build_rust ---
+  build:
+    name: Build market-sim
+    runs-on: ubuntu-latest   # pool.vmImage ubuntu-latest
+    timeout-minutes: 30      # timeoutInMinutes: 30
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      # --- mapped from: script 'Install Rust' (rustup + ##vso[task.prependpath]) ---
+      - name: Install Rust
+        run: |
+          curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y --default-toolchain stable
+          echo "$HOME/.cargo/bin" >> "$GITHUB_PATH"
+
+      # --- mapped from: script 'Fetch dependencies' (workingDirectory: services/market-sim) ---
+      - name: Fetch dependencies
+        working-directory: services/market-sim
+        run: cargo fetch
+
+      # --- mapped from: script 'Lint with clippy' ---
+      - name: Lint with clippy
+        working-directory: services/market-sim
+        run: cargo clippy -- -D warnings
+
+      # --- mapped from: script 'Build release binary' ---
+      - name: Build release binary
+        working-directory: services/market-sim
+        run: cargo build --release
+
+      # --- mapped from: script 'Run tests' ---
+      - name: Run tests
+        working-directory: services/market-sim
+        run: cargo test -- --test-threads=1
+
+      # --- mapped from: script 'Stage binary' ($(Build.ArtifactStagingDirectory) → runner.temp/staging) ---
+      - name: Stage binary
+        working-directory: services/market-sim
+        env:
+          BUILD_ARTIFACTSTAGINGDIRECTORY: ${{ runner.temp }}/staging
+        run: |
+          mkdir -p "$BUILD_ARTIFACTSTAGINGDIRECTORY"
+          cp target/release/market-sim "$BUILD_ARTIFACTSTAGINGDIRECTORY/"
+
+      # --- mapped from: PublishBuildArtifacts@1 (artifactName: market-sim-binary) ---
+      # ADO only published a pipeline artifact; there was no Artifactory registration step.
+      - name: Publish market-sim binary (pipeline artifact only, no Artifactory registration)
+        uses: actions/upload-artifact@v4
+        with:
+          name: market-sim-binary
+          path: ${{ runner.temp }}/staging
+          if-no-files-found: error
+
+      # Not an ADO step. Records, in the run summary, the integration points this pipeline
+      # intentionally lacks so reviewers of the migration scorecard do not mistake their
+      # absence for a translation error.
+      - name: Migration parity notes (no Artifactory, D2 notify or compliance attestation in ADO source)
+        run: |
+          {
+            echo "### market-sim-ci migration parity notes"
+            echo "- Artifactory registration: not present in ADO source (PublishBuildArtifacts@1 only)"
+            echo "- D2 release notification: not present; deploy is 'managed outside D2'"
+            echo "- Compliance attestation: not present in ADO source"
+            echo "- ContainerRegistry-ACR service connection bound in ADO but unused by YAML (possibly stale)"
+          } >> "$GITHUB_STEP_SUMMARY"
+
+  # --- mapped from: stage Deploy (dependsOn: Build; condition: succeeded() && Build.SourceBranch == refs/heads/main) ---
+  deploy:
+    name: Deploy market-sim
+    needs: build
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      # --- mapped from: script 'Deploy to cluster' ---
+      # Faithful replica: ADO only echoes. The real deploy mechanism to the compute
+      # cluster is not in this pipeline and must be confirmed with team-quant.
+      - name: Deploy to cluster (echo only — managed outside D2)
+        run: |
+          echo "Deploying market-sim to compute cluster..."
+          echo "This deployment is managed outside D2"

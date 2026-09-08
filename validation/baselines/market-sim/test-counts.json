@@ -1,0 +1,11 @@
+{
+  "service": "market-sim",
+  "status": "provisional",
+  "note": "No cargo test output is available in this repository and the ADO API dump does not include test counts (PublishTestResults@2 was never used). Populate expected_total_tests from a recent ADO run of pipeline 108 before enforcing.",
+  "expected_test_suites": 1,
+  "expected_total_tests": 0,
+  "minimum_pass_rate": 1.0,
+  "expected_coverage_percent": null,
+  "frameworks": ["cargo test"],
+  "last_updated": "2026-09-08"
+}

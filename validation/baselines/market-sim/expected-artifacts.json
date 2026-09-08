@@ -1,0 +1,15 @@
+{
+  "artifact_name": "market-sim-binary",
+  "service": "market-sim",
+  "status": "provisional",
+  "note": "Rust source for market-sim is not in this repository; values are derived from the ADO YAML (single release binary copied to the staging directory). Owner (team-quant) must confirm against a real ADO run before this baseline is trusted.",
+  "expected_file_count": 1,
+  "expected_file_types": [],
+  "expected_contents": [
+    "market-sim"
+  ],
+  "min_artifact_size_mb": 1,
+  "max_artifact_size_mb": 100,
+  "last_updated": "2026-09-08",
+  "updated_by": "ado-to-gha-migration (ADO pipeline 108)"
+}
