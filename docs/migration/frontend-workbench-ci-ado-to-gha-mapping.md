@@ -64,6 +64,7 @@ rules provide the deployment gate represented by the ADO deployment jobs.
 | `CDN_STORAGE_ACCOUNT` | Variable | Configure | Configure |
 | `CDN_STORAGE_KEY` | Secret | Configure | Configure |
 | `CDN_PURGE_API_KEY` | Secret | Configure | Configure |
+| `HEALTH_CHECK_URL` | Variable (optional) | Real dev health endpoint | Real staging health endpoint |
 
 The workflow reads these as `vars.CDN_ENDPOINT`, `vars.CDN_STORAGE_ACCOUNT`,
 `secrets.CDN_STORAGE_KEY`, and `secrets.CDN_PURGE_API_KEY` in each deployment
@@ -117,7 +118,9 @@ changes are required.
 3. CDN upload and purge steps are `echo` placeholders in ADO and were ported
    verbatim; the real CDN mechanism is unknown.
 4. The health check targets `https://<env>.example.com/health`, which is a
-   placeholder host.
+   placeholder host inherited from ADO. Set the `HEALTH_CHECK_URL` environment
+   variable on `dev-frontend` / `staging-frontend` to the real endpoint; the
+   placeholder is only used when the variable is unset.
 5. Lighthouse uses `|| true`, so Lighthouse failures never fail the build; this
    behavior is preserved.
 6. ADO does not publish test results, and coverage output is not uploaded;

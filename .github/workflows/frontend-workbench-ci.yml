@@ -138,10 +138,14 @@ jobs:
           echo "Purging CDN cache for $DEPLOY_ENVIRONMENT..."
 
       # --- mapped from: script 'Health check' ---
+      # ADO probes the placeholder host <env>.example.com; set the HEALTH_CHECK_URL
+      # environment variable to the real endpoint to override it.
       - name: Health check
+        env:
+          HEALTH_CHECK_URL: ${{ vars.HEALTH_CHECK_URL }}
         run: |
           echo "Verifying deployment health..."
-          curl -sf "https://$DEPLOY_ENVIRONMENT.example.com/health" || exit 1
+          curl -sf "${HEALTH_CHECK_URL:-https://$DEPLOY_ENVIRONMENT.example.com/health}" || exit 1
 
       # Not in the ADO source: frontend-deploy.yml has no D2 notify or compliance attestation step.
       # Records what was deployed in the run summary so the gap is visible to reviewers.
@@ -191,10 +195,14 @@ jobs:
           echo "Purging CDN cache for $DEPLOY_ENVIRONMENT..."
 
       # --- mapped from: script 'Health check' ---
+      # ADO probes the placeholder host <env>.example.com; set the HEALTH_CHECK_URL
+      # environment variable to the real endpoint to override it.
       - name: Health check
+        env:
+          HEALTH_CHECK_URL: ${{ vars.HEALTH_CHECK_URL }}
         run: |
           echo "Verifying deployment health..."
-          curl -sf "https://$DEPLOY_ENVIRONMENT.example.com/health" || exit 1
+          curl -sf "${HEALTH_CHECK_URL:-https://$DEPLOY_ENVIRONMENT.example.com/health}" || exit 1
 
       # Not in the ADO source: frontend-deploy.yml has no D2 notify or compliance attestation step.
       - name: Deployment summary (no D2 notify / compliance attestation in ADO source)
