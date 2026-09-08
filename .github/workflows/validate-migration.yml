@@ -1,0 +1,190 @@
+# Validates ADO-to-GHA pipeline migrations on every PR.
+# Runs actionlint, compares ADO ↔ GHA structure, checks baselines,
+# and posts a rich validation report as a PR comment.
+
+name: validate-migration
+
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - '.github/workflows/**'
+      - 'services/**/azure-pipelines.yml'
+      - 'validation/**'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pull-requests: write
+
+jobs:
+  validate:
+    name: Validate pipeline migration
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Install actionlint
+        run: |
+          bash <(curl -sSL https://raw.githubusercontent.com/rhysd/actionlint/main/scripts/download-actionlint.bash)
+          sudo mv actionlint /usr/local/bin/
+
+      - name: Lint all GHA workflows
+        id: lint
+        run: |
+          set +e
+          LINT_OUTPUT=$(actionlint -format '{{range $err := .}}::error file={{$err.Filepath}},line={{$err.Line}},col={{$err.Column}}::{{$err.Message}}%0A{{end}}' 2>&1)
+          LINT_EXIT=$?
+          echo "exit_code=$LINT_EXIT" >> "$GITHUB_OUTPUT"
+          if [ $LINT_EXIT -ne 0 ]; then
+            echo "### actionlint found issues:" >> "$GITHUB_STEP_SUMMARY"
+            echo '```' >> "$GITHUB_STEP_SUMMARY"
+            actionlint >> "$GITHUB_STEP_SUMMARY" 2>&1 || true
+            echo '```' >> "$GITHUB_STEP_SUMMARY"
+          else
+            echo "actionlint: all workflows valid" >> "$GITHUB_STEP_SUMMARY"
+          fi
+
+      - name: Install PyYAML
+        run: pip install --quiet pyyaml
+
+      - name: Detect changed workflows
+        id: detect
+        run: |
+          WORKFLOWS=$(git diff --name-only origin/main...HEAD -- '.github/workflows/*.yml' | tr '\n' ' ')
+          echo "workflows=$WORKFLOWS" >> "$GITHUB_OUTPUT"
+          echo "Found changed workflows: $WORKFLOWS"
+
+      - name: Run migration validation
+        id: validate
+        run: |
+          REPORT=""
+          EXIT=0
+
+          # Map workflow names to services/ADO pipelines
+          for wf in ${{ steps.detect.outputs.workflows }}; do
+            SERVICE=""
+            ADO_PIPELINE=""
+
+            # Extract service name from workflow filename
+            BASE=$(basename "$wf" .yml)
+            case "$BASE" in
+              pricing-engine-ci)
+                SERVICE="pricing-engine"
+                ADO_PIPELINE="services/pricing-engine/azure-pipelines.yml"
+                ;;
+              portfolio-api-ci)
+                SERVICE="portfolio-api"
+                ADO_PIPELINE="services/portfolio-api/azure-pipelines.yml"
+                ;;
+              risk-batch-*)
+                SERVICE="risk-batch"
+                ADO_PIPELINE="services/risk-batch/azure-pipelines.yml"
+                ;;
+              market-sim-ci)
+                SERVICE="market-sim"
+                ADO_PIPELINE="services/market-sim/azure-pipelines.yml"
+                ;;
+              ops-control-plane-ci)
+                SERVICE="ops-control-plane"
+                ADO_PIPELINE="services/ops-control-plane/azure-pipelines.yml"
+                ;;
+              frontend-workbench-ci)
+                SERVICE="frontend-workbench"
+                ADO_PIPELINE="services/frontend-workbench/azure-pipelines.yml"
+                ;;
+              regulatory-reporting-ci)
+                SERVICE="regulatory-reporting"
+                ADO_PIPELINE="services/regulatory-reporting/azure-pipelines.yml"
+                ;;
+              *)
+                echo "No ADO mapping for $BASE — skipping"
+                continue
+                ;;
+            esac
+
+            if [ ! -f "$ADO_PIPELINE" ]; then
+              echo "ADO pipeline not found: $ADO_PIPELINE — skipping"
+              continue
+            fi
+
+            echo "Validating: $SERVICE ($wf ↔ $ADO_PIPELINE)"
+            RESULT=$(python validation/scripts/validate_migration.py \
+              --service "$SERVICE" \
+              --ado-pipeline "$ADO_PIPELINE" \
+              --gha-workflow "$wf" \
+              --baselines validation/baselines)
+            REPORT="${REPORT}${RESULT}"$'\n\n'
+          done
+
+          # Full scan on manual dispatch only
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ] && [ -z "${{ steps.detect.outputs.workflows }}" ]; then
+            for wf in .github/workflows/*-ci.yml; do
+              [ -f "$wf" ] || continue
+              BASE=$(basename "$wf" .yml)
+              SERVICE="${BASE%-ci}"
+              ADO_PIPELINE="services/$SERVICE/azure-pipelines.yml"
+              [ -f "$ADO_PIPELINE" ] || continue
+
+              echo "Validating (full scan): $SERVICE"
+              RESULT=$(python validation/scripts/validate_migration.py \
+                --service "$SERVICE" \
+                --ado-pipeline "$ADO_PIPELINE" \
+                --gha-workflow "$wf" \
+                --baselines validation/baselines)
+              REPORT="${REPORT}${RESULT}"$'\n\n'
+            done
+          fi
+
+          if [ -z "$REPORT" ]; then
+            REPORT="No migration workflows detected for validation."
+          fi
+
+          # Write report to file (PR comment body has a size limit)
+          echo "$REPORT" > /tmp/validation-report.md
+          cat /tmp/validation-report.md >> "$GITHUB_STEP_SUMMARY" 2>/dev/null || true
+
+      - name: Post validation report to PR
+        if: github.event_name == 'pull_request'
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const fs = require('fs');
+            const report = fs.readFileSync('/tmp/validation-report.md', 'utf8');
+            const body = `### Pipeline Migration Validation\n\n${report}\n\n---\n*Auto-generated by [validate-migration](${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }})*`;
+
+            // Find existing comment to update
+            const { data: comments } = await github.rest.issues.listComments({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: context.issue.number,
+            });
+            const existing = comments.find(c =>
+              c.user.type === 'Bot' &&
+              c.body.includes('### Pipeline Migration Validation')
+            );
+
+            if (existing) {
+              await github.rest.issues.updateComment({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                comment_id: existing.id,
+                body,
+              });
+            } else {
+              await github.rest.issues.createComment({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                issue_number: context.issue.number,
+                body,
+              });
+            }
+
+      - name: Upload validation report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: migration-validation-report
+          path: /tmp/validation-report.md
