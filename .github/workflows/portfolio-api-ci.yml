@@ -58,14 +58,6 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
-      # --- mapped from: JavaToolInstaller@0 (versionSpec=17, x64, PreInstalled) ---
-      - name: Install JDK ${{ env.JDK_VERSION }}
-        uses: actions/setup-java@v4
-        with:
-          distribution: temurin
-          java-version: ${{ env.JDK_VERSION }}
-          cache: maven
-
       - name: Check for Maven project
         id: maven-project
         run: |
@@ -75,6 +67,22 @@ jobs:
             echo "has_pom=false" >> "$GITHUB_OUTPUT"
             echo "No Maven project found at $SERVICE_DIR/pom.xml; skipping Maven build."
           fi
+
+      # --- mapped from: JavaToolInstaller@0 (versionSpec=17, x64, PreInstalled) ---
+      - name: Install JDK ${{ env.JDK_VERSION }} with Maven cache
+        if: steps.maven-project.outputs.has_pom == 'true'
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: ${{ env.JDK_VERSION }}
+          cache: maven
+
+      - name: Install JDK ${{ env.JDK_VERSION }} without Maven cache
+        if: steps.maven-project.outputs.has_pom == 'false'
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: ${{ env.JDK_VERSION }}
 
       # --- mapped from: Maven@4 (mavenPomFile=pom.xml, goals=package, options=-B -DskipTests=false) ---
       - name: Maven ${{ env.MAVEN_GOAL }}
