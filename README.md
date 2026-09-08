@@ -73,6 +73,16 @@ See [docs/branch-usage-notes.md](docs/branch-usage-notes.md) for details.
 - [Ownership Gaps](docs/ownership-gaps.md) — services with unclear ownership
 - [Demo Scenarios](docs/demo-scenarios.md) — CI migration analysis scenarios
 - [Validation Strategy](validation/docs/validation-strategy.md) — migration validation approach
+- [Pipeline Inventory Report](docs/pipeline-inventory-report.md) — classification of all 18 pipelines for the ADO → GitHub Actions migration
+
+## Migration Validation
+
+Every PR that adds or changes a file under `.github/workflows/` runs the
+`validate-migration` workflow, which lints the workflow with `actionlint`,
+compares it against the source ADO pipeline (`validation/scripts/validate_migration.py`),
+and posts a scorecard comment on the PR. `services/pricing-engine/` contains a
+runnable .NET 8 scaffold so a migrated `pricing-engine-ci` workflow produces a real
+build, test run and artifacts.
 
 ## Integration Points
 
