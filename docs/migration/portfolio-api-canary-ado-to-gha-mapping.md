@@ -73,7 +73,7 @@ exited on start-up). Verification fell back to `docs/samples/ado-api-responses.j
 | ADO | GHA | Note |
 |---|---|---|
 | `trigger: none` + runtime `parameters.templateBranch` (string, 4 `values`) | `on.workflow_dispatch.inputs.template_variant` (`type: choice`, same four options, default `main`) | 1:1 |
-| — | `on.pull_request` (`main`; paths: `services/portfolio-api/**`, `templates/build/build-java.yml`, `build-tools/scripts/publish_artifact.py`, the workflow itself) | **Intentional addition** (playbook rule). On PRs the variant is always `main` and artifact registration is skipped. |
+| — | `on.pull_request` (`main`; paths: `services/portfolio-api/**` excluding the ADO YAMLs) | **Intentional addition** (playbook rule). On PRs the variant is always `main` and artifact registration is skipped. Deliberately *not* triggered by template/workflow edits: the Maven sources are not in this repo (gap 2), so such a run can only fail. Use `workflow_dispatch` to exercise the canary. |
 
 ## 3. Stage → job mapping
 
@@ -144,8 +144,9 @@ The script is **unchanged**; it reads these ADO-named variables, which the step 
    `portfolio-api-ci` except for the two-knob variant switch.
 2. **No Java source in this repo.** `pom.xml` / `src/` for portfolio-api are not in `azure-pipelines`;
    ADO must be checking out the service source from elsewhere (5 successful runs). Until the source
-   location is confirmed, the Maven step will fail in this repo. The `pull_request` trigger is
-   path-scoped so it only fires on template/workflow/script edits.
+   location is confirmed, the Maven step will fail in this repo (confirmed on the migration PR:
+   `No file ... matched to [**/pom.xml]`). The `pull_request` trigger is therefore scoped to
+   `services/portfolio-api/**` source changes only.
 3. **Test results have no native viewer** in GHA; they are uploaded as an artifact. Consider
    `dorny/test-reporter@v1` if a Checks-tab view is wanted.
 4. **`PreInstalled` JDK → Temurin.** ADO used whichever JDK 17 the hosted image ships;
