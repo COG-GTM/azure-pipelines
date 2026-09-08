@@ -8,9 +8,10 @@ system. Called by release templates after successful deployments.
 
 import argparse
 import json
-import os
 import sys
 from datetime import datetime, timezone
+
+from ci_context import ci_system, requested_for, run_url
 
 
 def notify(service: str, env: str, build_id: str, status: str):
@@ -22,11 +23,9 @@ def notify(service: str, env: str, build_id: str, status: str):
         "build_id": build_id,
         "status": status,
         "timestamp": datetime.now(timezone.utc).isoformat(),
-        "pipeline_url": os.environ.get("SYSTEM_TEAMFOUNDATIONCOLLECTIONURI", "")
-        + os.environ.get("SYSTEM_TEAMPROJECT", "")
-        + "/_build/results?buildId="
-        + build_id,
-        "triggered_by": os.environ.get("BUILD_REQUESTEDFOR", "unknown"),
+        "pipeline_url": run_url(build_id),
+        "triggered_by": requested_for(),
+        "ci_system": ci_system(),
     }
 
     print(f"Notifying D2:")

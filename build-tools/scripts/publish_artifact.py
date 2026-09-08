@@ -12,6 +12,8 @@ import os
 import sys
 from datetime import datetime, timezone
 
+from ci_context import agent_name, ci_system, source_branch, source_commit, staging_dir
+
 
 def publish_artifact(name: str, registry: str, build_id: str, metadata: dict = None):
     """Register an artifact in the artifact registry."""
@@ -20,9 +22,10 @@ def publish_artifact(name: str, registry: str, build_id: str, metadata: dict = N
         "registry": registry,
         "build_id": build_id,
         "timestamp": datetime.now(timezone.utc).isoformat(),
-        "source_branch": os.environ.get("BUILD_SOURCEBRANCH", "unknown"),
-        "source_commit": os.environ.get("BUILD_SOURCEVERSION", "unknown"),
-        "agent_name": os.environ.get("AGENT_NAME", "unknown"),
+        "source_branch": source_branch(),
+        "source_commit": source_commit(),
+        "agent_name": agent_name(),
+        "ci_system": ci_system(),
         "metadata": metadata or {},
     }
 
@@ -33,7 +36,7 @@ def publish_artifact(name: str, registry: str, build_id: str, metadata: dict = N
     print(f"  Commit: {payload['source_commit']}")
 
     # In a real environment, this would POST to the Artifactory API
-    output_path = os.environ.get("BUILD_ARTIFACTSTAGINGDIRECTORY", "/tmp")
+    output_path = staging_dir()
     manifest_path = os.path.join(output_path, f"{name}-manifest.json")
 
     with open(manifest_path, "w") as f:

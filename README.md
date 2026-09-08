@@ -56,7 +56,7 @@ See [docs/branch-usage-notes.md](docs/branch-usage-notes.md) for details.
 
 | Service | Stack | Template Source |
 |---------|-------|-----------------|
-| pricing-engine | .NET | central templates |
+| pricing-engine | .NET | central templates → migrated to GHA (`.github/workflows/pricing-engine-ci.yml`) |
 | portfolio-api | Java/Maven | central templates (master) |
 | risk-batch | Python | central templates (staging/preprod) |
 | market-sim | Rust | custom (inline) |
@@ -74,6 +74,7 @@ See [docs/branch-usage-notes.md](docs/branch-usage-notes.md) for details.
 - [Demo Scenarios](docs/demo-scenarios.md) — CI migration analysis scenarios
 - [Validation Strategy](validation/docs/validation-strategy.md) — migration validation approach
 - [Pipeline Inventory Report](docs/pipeline-inventory-report.md) — classification of all 18 pipelines for the ADO → GitHub Actions migration
+- [Pricing Engine CI Migration](docs/migration/pricing-engine-ci.md) — pricing-engine ADO-to-GHA mapping and validation
 
 ## Migration Validation
 

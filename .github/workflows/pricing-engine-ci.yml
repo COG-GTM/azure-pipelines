@@ -1,0 +1,119 @@
+# Source: services/pricing-engine/azure-pipelines.yml
+# Templates resolved from main @ e5d8164; mapping: docs/migration/pricing-engine-ci.md
+name: pricing-engine-ci
+
+on:
+  push:
+    branches:
+      - main
+      - 'release/**'
+    paths:
+      - 'services/pricing-engine/**'
+      - '.github/workflows/pricing-engine-ci.yml'
+      - 'build-tools/scripts/**'
+  pull_request:
+    branches:
+      - main
+    paths:
+      - 'services/pricing-engine/**'
+      - '.github/workflows/pricing-engine-ci.yml'
+      - 'build-tools/scripts/**'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+env:
+  BUILD_CONFIGURATION: Release
+  ARTIFACT_NAME: pricing-engine-drop
+  DOTNET_VERSION: 8.0.x
+  SOLUTION: services/pricing-engine/PricingEngine.sln
+
+concurrency:
+  group: pricing-engine-ci-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+jobs:
+  build:
+    name: Build pricing-engine
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: ${{ env.DOTNET_VERSION }}
+      - name: Restore NuGet packages
+        run: dotnet restore "$SOLUTION"
+      - name: Build solution
+        run: dotnet build "$SOLUTION" --configuration "$BUILD_CONFIGURATION" --no-restore
+      - name: Publish artifacts
+        run: dotnet publish services/pricing-engine/src/PricingEngine/PricingEngine.csproj --configuration "$BUILD_CONFIGURATION" --no-build --output "$RUNNER_TEMP/drop"
+      - name: Register artifact in Artifactory
+        env:
+          BUILD_ARTIFACTSTAGINGDIRECTORY: ${{ runner.temp }}/drop
+        run: python3 build-tools/scripts/publish_artifact.py --name "$ARTIFACT_NAME" --registry Artifactory --build-id "${{ github.run_id }}"
+      - name: Upload build artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ env.ARTIFACT_NAME }}
+          path: ${{ runner.temp }}/drop
+          if-no-files-found: error
+
+  test:
+    name: Run tests
+    needs: build
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: ${{ env.DOTNET_VERSION }}
+      - name: Run unit tests
+        run: dotnet test "$SOLUTION" --configuration "$BUILD_CONFIGURATION" --logger "trx;LogFileName=results.trx" --results-directory "$RUNNER_TEMP/test-results" --collect:"XPlat Code Coverage"
+      - name: Normalize test results
+        if: always()
+        run: python3 build-tools/scripts/normalize_test_results.py --input-dir "$RUNNER_TEMP/test-results" --output "$RUNNER_TEMP/normalized-results.json"
+      - name: Upload test results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: pricing-engine-test-results
+          path: |
+            ${{ runner.temp }}/test-results
+            ${{ runner.temp }}/normalized-results.json
+
+  deploy-dev:
+    name: Deploy to dev
+    needs: test
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    environment: dev
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Download build artifacts
+        uses: actions/download-artifact@v4
+        with:
+          name: ${{ env.ARTIFACT_NAME }}
+          path: ${{ runner.temp }}/drop
+      - name: Execute deployment
+        run: |
+          echo "Deploying $ARTIFACT_NAME to dev"
+          echo "Strategy: rolling"
+      - name: Notify D2
+        run: python3 build-tools/scripts/notify_release_orchestrator.py --service "$ARTIFACT_NAME" --env dev --build-id "${{ github.run_id }}" --status success
+      - name: Generate compliance attestation
+        env:
+          BUILD_ARTIFACTSTAGINGDIRECTORY: ${{ runner.temp }}/attestation
+        run: |
+          mkdir -p "$BUILD_ARTIFACTSTAGINGDIRECTORY"
+          python3 build-tools/scripts/generate_attestation.py --artifact "$ARTIFACT_NAME" --env dev --build-id "${{ github.run_id }}"
+      - name: Upload attestation
+        uses: actions/upload-artifact@v4
+        with:
+          name: pricing-engine-dev-attestation
+          path: ${{ runner.temp }}/attestation

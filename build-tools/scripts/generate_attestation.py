@@ -13,6 +13,8 @@ import os
 import sys
 from datetime import datetime, timezone
 
+from ci_context import agent_os, ci_system, pipeline_name, source_branch, source_commit, staging_dir
+
 
 def generate_attestation(artifact: str, env: str, build_id: str, hotfix: bool = False):
     """Generate a compliance attestation record."""
@@ -23,10 +25,11 @@ def generate_attestation(artifact: str, env: str, build_id: str, hotfix: bool = 
         "build_id": build_id,
         "timestamp": datetime.now(timezone.utc).isoformat(),
         "attestation_type": "hotfix" if hotfix else "standard",
-        "source_branch": os.environ.get("BUILD_SOURCEBRANCH", "unknown"),
-        "source_commit": os.environ.get("BUILD_SOURCEVERSION", "unknown"),
-        "pipeline_name": os.environ.get("BUILD_DEFINITIONNAME", "unknown"),
-        "agent_os": os.environ.get("AGENT_OS", "unknown"),
+        "source_branch": source_branch(),
+        "source_commit": source_commit(),
+        "pipeline_name": pipeline_name(),
+        "agent_os": agent_os(),
+        "ci_system": ci_system(),
         "checks": {
             "tests_passed": True,
             "security_scan": not hotfix,  # Hotfixes skip security scan
@@ -44,7 +47,7 @@ def generate_attestation(artifact: str, env: str, build_id: str, hotfix: bool = 
     print(f"  Type: {attestation['attestation_type']}")
     print(f"  Hash: {attestation['hash'][:16]}...")
 
-    output_path = os.environ.get("BUILD_ARTIFACTSTAGINGDIRECTORY", "/tmp")
+    output_path = staging_dir()
     attestation_path = os.path.join(output_path, f"{artifact}-attestation.json")
 
     with open(attestation_path, "w") as f:
