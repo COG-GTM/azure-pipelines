@@ -79,6 +79,10 @@ jobs:
                 SERVICE="portfolio-api"
                 ADO_PIPELINE="services/portfolio-api/azure-pipelines.yml"
                 ;;
+              portfolio-api-canary)
+                SERVICE="portfolio-api"
+                ADO_PIPELINE="services/portfolio-api/azure-pipelines-canary.yml"
+                ;;
               risk-batch-*)
                 SERVICE="risk-batch"
                 ADO_PIPELINE="services/risk-batch/azure-pipelines.yml"

@@ -1,0 +1,11 @@
+{
+  "service": "portfolio-api",
+  "expected_test_suites": 0,
+  "expected_total_tests": 0,
+  "minimum_pass_rate": 1.0,
+  "expected_coverage_percent": null,
+  "frameworks": ["junit"],
+  "last_updated": "2026-09-08",
+  "updated_by": "devin-migration",
+  "note": "Placeholder. portfolio-api Maven sources (pom.xml, src/) are not in this repository, so no surefire counts could be captured. team-quant should populate expected_total_tests from the last ADO run of pipeline 102/103 before cut-over."
+}

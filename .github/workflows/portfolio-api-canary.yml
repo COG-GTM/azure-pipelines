@@ -1,0 +1,173 @@
+# portfolio-api-canary workflow
+# Migrated from: services/portfolio-api/azure-pipelines-canary.yml (ADO pipeline ID 103)
+# Stack: Java 17 / Maven
+# Original template source: shared-ci-platform templates/build/build-java.yml, selected
+#   at queue time from one of four branches (main | master | staging/preprod |
+#   staging/release-hardening) via the `templateBranch` runtime parameter.
+# Mapping doc: docs/migration/portfolio-api-canary-ado-to-gha-mapping.md
+#
+# ADO templates inlined:
+#   - templates/build/build-java.yml @ main               (canonical, inlined fully)
+#   - templates/build/build-java.yml @ master             (differs only in maven goals + registry name)
+#   - templates/build/build-java.yml @ staging/preprod    (identical to master)
+#   - templates/build/build-java.yml @ staging/release-hardening (identical to master)
+#
+# RETIREMENT RECOMMENDATION: this pipeline exists only to A/B template-branch drift.
+# Once the template branches are consolidated onto `main`, delete this workflow
+# (see docs/pipeline-inventory-report.md §3.1 / §6 / §7).
+name: portfolio-api-canary
+
+on:
+  # --- mapped from: `parameters.templateBranch` (manual queue-time parameter; ADO `trigger: none`) ---
+  workflow_dispatch:
+    inputs:
+      template_variant:
+        description: 'Template branch variant to emulate (ADO parameter `templateBranch`)'
+        type: choice
+        default: main
+        options:
+          - main
+          - master
+          - staging/preprod
+          - staging/release-hardening
+  # Not present in ADO (trigger: none). Added so template/workflow edits get CI feedback
+  # on PRs; the PR path always resolves to the `main` variant.
+  pull_request:
+    branches: [main]
+    paths:
+      - 'services/portfolio-api/**'
+      - 'templates/build/build-java.yml'
+      - 'build-tools/scripts/publish_artifact.py'
+      - '.github/workflows/portfolio-api-canary.yml'
+
+permissions:
+  contents: read
+
+env:
+  # --- mapped from: variables.artifactName ---
+  ARTIFACT_NAME: portfolio-api-canary
+  # --- mapped from: variables.templates_branch (= parameters.templateBranch) ---
+  TEMPLATE_VARIANT: ${{ inputs.template_variant || 'main' }}
+  # --- mapped from: template parameter jdkVersion: '17' ---
+  JDK_VERSION: '17'
+  # --- mapped from: template parameter mavenOptions default ---
+  MAVEN_OPTIONS: '-B -DskipTests=false'
+
+concurrency:
+  group: portfolio-api-canary-${{ github.ref }}-${{ inputs.template_variant || 'main' }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+jobs:
+  # --- mapped from: stage Build / job build ---
+  build:
+    name: Build portfolio-api (canary - ${{ inputs.template_variant || 'main' }})
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      # Emulates the `${{ if eq(parameters.templateBranch, ...) }}` template selection.
+      # Only the inputs that actually differ between build-java.yml branches are variant-specific.
+      - name: Resolve template variant
+        id: variant
+        run: |
+          case "$TEMPLATE_VARIANT" in
+            main)
+              echo "maven_goals=clean package" >> "$GITHUB_OUTPUT"
+              echo "registry=Artifactory" >> "$GITHUB_OUTPUT"
+              ;;
+            master|staging/preprod|staging/release-hardening)
+              echo "maven_goals=package" >> "$GITHUB_OUTPUT"
+              echo "registry=artifact-registry" >> "$GITHUB_OUTPUT"
+              ;;
+            *)
+              echo "::error::Unknown template variant '$TEMPLATE_VARIANT'"
+              exit 1
+              ;;
+          esac
+          echo "Template variant: $TEMPLATE_VARIANT"
+
+      # --- mapped from: JavaToolInstaller@0 (versionSpec 17, x64, PreInstalled) ---
+      - name: Install JDK ${{ env.JDK_VERSION }}
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: ${{ env.JDK_VERSION }}
+          architecture: x64
+          cache: maven
+
+      # --- mapped from: Maven@4 (mavenPomFile pom.xml, goals, options, publishJUnitResults true) ---
+      - name: Maven ${{ steps.variant.outputs.maven_goals }}
+        run: |
+          # shellcheck disable=SC2086
+          mvn -f pom.xml $MAVEN_OPTIONS ${{ steps.variant.outputs.maven_goals }}
+
+      # --- mapped from: Maven@4 publishJUnitResults / testResultsFiles '**/surefire-reports/TEST-*.xml' ---
+      - name: Collect JUnit test results
+        if: always()
+        run: |
+          mkdir -p "$RUNNER_TEMP/test-results"
+          find . -path '*/surefire-reports/TEST-*.xml' -type f -exec cp {} "$RUNNER_TEMP/test-results/" \;
+          echo "Collected $(find "$RUNNER_TEMP/test-results" -type f | wc -l) JUnit report file(s)"
+
+      - name: Upload JUnit test results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ env.ARTIFACT_NAME }}-test-results
+          path: ${{ runner.temp }}/test-results
+          if-no-files-found: warn
+
+      # --- mapped from: script 'Stage build artifacts' (publishArtifacts: true) ---
+      - name: Stage build artifacts
+        env:
+          # --- mapped from: $(Build.ArtifactStagingDirectory) ---
+          STAGING_DIR: ${{ runner.temp }}/staging
+        run: |
+          mkdir -p "$STAGING_DIR"
+          cp target/*.jar "$STAGING_DIR"/ 2>/dev/null || true
+          cp target/*.war "$STAGING_DIR"/ 2>/dev/null || true
+
+      # --- mapped from: PublishBuildArtifacts@1 (pathToPublish $(Build.ArtifactStagingDirectory)) ---
+      - name: Upload artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ env.ARTIFACT_NAME }}
+          path: ${{ runner.temp }}/staging
+          if-no-files-found: warn
+
+      # --- mapped from: script 'Register artifact in Artifactory' (publish_artifact.py) ---
+      # Guarded to non-PR events so PR builds never register canary artifacts.
+      - name: Register artifact in Artifactory (${{ steps.variant.outputs.registry }})
+        if: github.event_name != 'pull_request'
+        env:
+          BUILD_SOURCEBRANCH: ${{ github.ref }}
+          BUILD_SOURCEVERSION: ${{ github.sha }}
+          AGENT_NAME: ${{ runner.name }}
+          BUILD_ARTIFACTSTAGINGDIRECTORY: ${{ runner.temp }}/staging
+          PIPELINE_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        run: |
+          mkdir -p "$BUILD_ARTIFACTSTAGINGDIRECTORY"
+          python3 build-tools/scripts/publish_artifact.py \
+            --name "$ARTIFACT_NAME" \
+            --registry "${{ steps.variant.outputs.registry }}" \
+            --build-id "${{ github.run_id }}"
+
+      # Not in ADO: build-java.yml has no D2 notify or compliance attestation step (those live in
+      # release-standard.yml, which the canary never runs). This step only records what was
+      # exercised so the canary result is reviewable.
+      - name: Canary summary (no D2 notify / compliance attestation in build-java.yml)
+        if: always()
+        run: |
+          {
+            echo "## portfolio-api-canary"
+            echo ""
+            echo "| Setting | Value |"
+            echo "|---|---|"
+            echo "| Template variant | \`$TEMPLATE_VARIANT\` |"
+            echo "| Maven goals | \`${{ steps.variant.outputs.maven_goals }}\` |"
+            echo "| Registry name | \`${{ steps.variant.outputs.registry }}\` |"
+            echo "| Artifact | \`$ARTIFACT_NAME\` |"
+            echo "| D2 notification | not part of build-java.yml (skipped) |"
+            echo "| Compliance attestation | not part of build-java.yml (skipped) |"
+          } >> "$GITHUB_STEP_SUMMARY"
