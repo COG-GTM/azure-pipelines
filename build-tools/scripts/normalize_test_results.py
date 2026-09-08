@@ -38,6 +38,8 @@ def parse_junit_xml(filepath: str) -> dict:
     """Parse JUnit XML test results."""
     tree = ET.parse(filepath)
     root = tree.getroot()
+    if root.tag not in ("testsuites", "testsuite"):
+        raise ValueError(f"not a JUnit report (root <{root.tag}>)")
 
     suites = root.findall(".//testsuite")
     total_tests = 0
@@ -70,6 +72,11 @@ def normalize_results(input_dir: str, output_path: str):
             parsed["source"] = str(f.name)
             parsed["format"] = "junit-xml"
             results.append(parsed)
+        except ValueError as e:
+            if str(e).startswith("not a JUnit report"):
+                print(f"Skipping non-JUnit XML: {f}")
+            else:
+                print(f"WARNING: Could not parse {f}: {e}")
         except Exception as e:
             print(f"WARNING: Could not parse {f}: {e}")
 

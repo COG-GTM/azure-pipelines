@@ -50,6 +50,22 @@ jobs:
         run: dotnet build "$SOLUTION" --configuration "$BUILD_CONFIGURATION" --no-restore
       - name: Publish artifacts
         run: dotnet publish services/pricing-engine/src/PricingEngine/PricingEngine.csproj --configuration "$BUILD_CONFIGURATION" --no-build --output "$RUNNER_TEMP/drop"
+      - name: Compare artifacts against ADO baseline
+        continue-on-error: true
+        run: |
+          set +e
+          python3 validation/scripts/compare_artifacts.py \
+            --baseline validation/baselines/pricing-engine/expected-artifacts.json \
+            --artifacts "$RUNNER_TEMP/drop" \
+            --output "$RUNNER_TEMP/artifact-comparison.json"
+          comparison_status=$?
+          {
+            echo "### Artifact baseline comparison"
+            echo '```json'
+            cat "$RUNNER_TEMP/artifact-comparison.json"
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
+          exit "$comparison_status"
       - name: Register artifact in Artifactory
         env:
           BUILD_ARTIFACTSTAGINGDIRECTORY: ${{ runner.temp }}/drop
@@ -59,6 +75,13 @@ jobs:
         with:
           name: ${{ env.ARTIFACT_NAME }}
           path: ${{ runner.temp }}/drop
+          if-no-files-found: error
+      - name: Upload validation comparison
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: pricing-engine-validation
+          path: ${{ runner.temp }}/artifact-comparison.json
           if-no-files-found: error
 
   test:
@@ -77,6 +100,23 @@ jobs:
       - name: Normalize test results
         if: always()
         run: python3 build-tools/scripts/normalize_test_results.py --input-dir "$RUNNER_TEMP/test-results" --output "$RUNNER_TEMP/normalized-results.json"
+      - name: Compare test counts against ADO baseline
+        if: always()
+        continue-on-error: true
+        run: |
+          set +e
+          python3 validation/scripts/compare_test_counts.py \
+            --baseline validation/baselines/pricing-engine/test-counts.json \
+            --actual "$RUNNER_TEMP/normalized-results.json" \
+            --output "$RUNNER_TEMP/test-comparison.json"
+          comparison_status=$?
+          {
+            echo "### Test baseline comparison"
+            echo '```json'
+            cat "$RUNNER_TEMP/test-comparison.json"
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
+          exit "$comparison_status"
       - name: Upload test results
         if: always()
         uses: actions/upload-artifact@v4
@@ -85,6 +125,7 @@ jobs:
           path: |
             ${{ runner.temp }}/test-results
             ${{ runner.temp }}/normalized-results.json
+            ${{ runner.temp }}/test-comparison.json
 
   deploy-dev:
     name: Deploy to dev
