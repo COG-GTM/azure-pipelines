@@ -42,6 +42,7 @@
 |---|---|---|---|---|
 | 0 | (implicit checkout) | — | `actions/checkout@v4` | first step in both jobs |
 | 1 | Install Rust | `script` | `Install Rust` | identical rustup command; `##vso[task.prependpath]` → `$GITHUB_PATH` |
+| — | — | — | `Verify Rust project is present` | **Added**: fails fast with an explicit `::error::` if `services/market-sim/Cargo.toml` is absent (sources are not in this repo — known gap 3). |
 | 2 | Fetch dependencies | `script`, `workingDirectory: services/market-sim` | `Fetch dependencies` | `working-directory:` |
 | 3 | Lint with clippy | `script` | `Lint with clippy` | `cargo clippy -- -D warnings` unchanged |
 | 4 | Build release binary | `script` | `Build release binary` | `cargo build --release` unchanged |

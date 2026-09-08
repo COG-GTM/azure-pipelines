@@ -54,6 +54,16 @@ jobs:
           curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y --default-toolchain stable
           echo "$HOME/.cargo/bin" >> "$GITHUB_PATH"
 
+      # Not an ADO step. This repository holds only the pipeline definition for market-sim;
+      # fail fast with a clear message instead of an opaque cargo error if the crate is absent.
+      - name: Verify Rust project is present
+        run: |
+          if [ ! -f services/market-sim/Cargo.toml ]; then
+            echo "::error::services/market-sim/Cargo.toml not found. The market-sim Rust sources are not in this checkout;" \
+                 "see docs/migration/market-sim-ci-ado-to-gha-mapping.md (known gap 3) — confirm the source location with team-quant."
+            exit 1
+          fi
+
       # --- mapped from: script 'Fetch dependencies' (workingDirectory: services/market-sim) ---
       - name: Fetch dependencies
         working-directory: services/market-sim
