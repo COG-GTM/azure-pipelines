@@ -1,0 +1,12 @@
+{
+  "service": "portfolio-api",
+  "expected_test_suites": 0,
+  "expected_total_tests": 0,
+  "minimum_pass_rate": 1.0,
+  "expected_coverage_percent": null,
+  "frameworks": ["junit5-surefire"],
+  "status": "unconfirmed",
+  "notes": "Placeholder created during ADO->GHA migration (ADO 102). No portfolio-api source or surefire history is present in this repo; team-quant must populate counts from a recent ADO run before cut-over.",
+  "last_updated": "2026-09-08",
+  "updated_by": "migration (pending team-quant confirmation)"
+}
