@@ -19,9 +19,9 @@ ADO MCP verification (`pipeline_get_pipeline` / `pipeline_preview_pipeline_yaml`
 | ADO | GHA | Note |
 |---|---|---|
 | `trigger.branches.include: [main, master]` | `on.push.branches: [main, master]` | Both source branches preserved as requested |
-| `trigger.paths.include: services/portfolio-api/**` | `on.push.paths: services/portfolio-api/**` + the workflow file itself | Workflow path added so workflow edits get CI |
+| `trigger.paths.include: services/portfolio-api/**` | `on.push.paths: services/portfolio-api/**` + the workflow file + the three helper scripts it runs | Paths added so workflow/helper edits get CI (ADO only watched the service dir) |
 | *(no PR trigger)* | `on.pull_request.branches: [main, master]` (same paths) | **Intentional addition** for earlier feedback. PR runs build + test only; deploy/registration are push-gated |
-| *(none)* | `workflow_dispatch` | Manual re-run convenience |
+| *(none)* | `workflow_dispatch` | Manual build-only check: registration and `deploy-staging` are gated on `push`, so a manual run never registers or deploys |
 | — | `concurrency` group per ref, cancel-in-progress on PRs only | New; no ADO equivalent |
 
 ## Stage → job mapping
@@ -42,7 +42,7 @@ Note: `release-standard.yml` is a *stages* template, so in ADO the `Release` sta
 | 0 | *(implicit checkout)* | `actions/checkout@v4` | |
 | 1 | `JavaToolInstaller@0` `versionSpec=17`, `jdkArchitectureOption=x64`, `jdkSourceOption=PreInstalled` | `Check for Maven project` → `actions/setup-java@v4` with `distribution=temurin`, `java-version=17`; Maven cache is enabled only when `pom.xml` is present | PreInstalled JDK on hosted agent → Temurin from setup-java. Maven dependency cache added when a project is available (no ADO equivalent); the no-source path avoids setup-java's POM lookup |
 | 2 | `Maven@4` `mavenPomFile=pom.xml`, `goals=package`, `options=-B -DskipTests=false` | `Check for Maven project` → conditional `run: mvn -f pom.xml $MAVEN_OPTIONS $MAVEN_GOAL` with `working-directory: services/portfolio-api` | Missing source is expected in this repository; the Maven build is skipped until `pom.xml` is present (see gap **G1b**) |
-| 3 | `Maven@4` `publishJUnitResults=true`, `testResultsFiles=**/surefire-reports/TEST-*.xml` | `Collect JUnit test results` (`find … -path '*/surefire-reports/TEST-*.xml'`) + `actions/upload-artifact@v4` `portfolio-api-test-results`, both `if: always()` | `**` glob replaced by `find`. No native test tab in GHA — results are an artifact (see G6) |
+| 3 | `Maven@4` `publishJUnitResults=true`, `testResultsFiles=**/surefire-reports/TEST-*.xml` | `Collect JUnit test results` (`find … -path '*/surefire-reports/TEST-*.xml' -exec cp --parents`, preserving module paths) + `actions/upload-artifact@v4` `portfolio-api-test-results`, both `if: always()` | `**` glob replaced by `find`. No native test tab in GHA — results are an artifact (see G6) |
 | 4 | `script` "Stage build artifacts" (`cp target/*.jar|*.war $(Build.ArtifactStagingDirectory)/`) | same `cp` into `$RUNNER_TEMP/staging` with `mkdir -p` first | Runs only when the Maven project is present; `2>/dev/null \|\| true` preserved verbatim |
 | 5 | `PublishBuildArtifacts@1` `pathToPublish=$(Build.ArtifactStagingDirectory)`, `artifactName=portfolio-api-dist` | `actions/upload-artifact@v4` `name=portfolio-api-dist`, `path=$RUNNER_TEMP/staging`, `if-no-files-found: error` | Runs only when the Maven project is present; `error` still catches an empty artifact after a build |
 | 6 | `script` "Register artifact in artifact-registry" → `publish_artifact.py --registry artifact-registry` | "Register artifact in Artifactory" → `publish_artifact.py --registry Artifactory`, `if: github.event_name == 'push'` and a Maven project is present | Registry name mapped `master`→`main` (gap **G3**). Push-only guard prevents PR builds registering artifacts; the missing-source guard prevents publishing an empty staging directory |

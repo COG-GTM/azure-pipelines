@@ -21,6 +21,9 @@ on:
       - master
     paths:
       - 'services/portfolio-api/**'
+      - 'build-tools/scripts/publish_artifact.py'
+      - 'build-tools/scripts/notify_release_orchestrator.py'
+      - 'build-tools/scripts/generate_attestation.py'
       - '.github/workflows/portfolio-api-ci.yml'
   # Added during migration: ADO pipeline had no PR trigger.
   pull_request:
@@ -29,6 +32,9 @@ on:
       - master
     paths:
       - 'services/portfolio-api/**'
+      - 'build-tools/scripts/publish_artifact.py'
+      - 'build-tools/scripts/notify_release_orchestrator.py'
+      - 'build-tools/scripts/generate_attestation.py'
       - '.github/workflows/portfolio-api-ci.yml'
   workflow_dispatch:
 
@@ -95,8 +101,8 @@ jobs:
         if: always()
         run: |
           mkdir -p "$RUNNER_TEMP/test-results"
-          find "$SERVICE_DIR" -path '*/surefire-reports/TEST-*.xml' -exec cp {} "$RUNNER_TEMP/test-results/" \;
-          ls -1 "$RUNNER_TEMP/test-results" || true
+          find "$SERVICE_DIR" -path '*/surefire-reports/TEST-*.xml' -exec cp --parents {} "$RUNNER_TEMP/test-results/" \;
+          find "$RUNNER_TEMP/test-results" -type f
 
       # --- mapped from: Maven@4 publishJUnitResults=true (no native test tab in GHA) ---
       - name: Upload test results
