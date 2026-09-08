@@ -81,7 +81,7 @@ No deploy job was created. If a classic release exists, it will lose its artifac
 
 ## Known gaps / behavioral differences
 
-1. **Go source is not in this repository.** `services/ops-control-plane/` contains only `azure-pipelines.yml` — no `go.mod`, `go.sum`, or `cmd/server`. The workflow is a faithful translation but its first real run will fail at `actions/setup-go` (missing `go.sum` for cache) / `go mod download` until the module is present. This is also why the validation baselines under `validation/baselines/ops-control-plane/` are marked provisional with unmeasured test counts.
+1. **Baselines are measured against the scaffold, not the real service.** `services/ops-control-plane/` on `main` is a minimal runnable Go scaffold (1 test package, `TestRegistryOperations` + 6 subtests, 5.7 MB binary). `validation/baselines/ops-control-plane/` reflects those measurements; platform-team should confirm them against ADO build 98100 for the production module.
 2. **Dead bindings** (above) — a hidden ADO-side deploy may exist.
 3. **Retention:** ADO kept builds 30 days / min 5. `upload-artifact@v4` uses the repository default (90 days) unless `retention-days` is set.
 4. **PR trigger added** — the ADO pipeline only ran on `main` pushes. PR runs produce and upload an artifact too (no Artifactory registration exists to guard).
@@ -110,7 +110,6 @@ python3 validation/scripts/validate_migration.py \
 ## Open questions for platform-team
 
 - Is there an ADO classic release consuming `ops-control-plane-binary` (VG 211 / ACR bindings)? If yes, what does it deploy and where?
-- Where does the Go module live? It must be added to (or the path filter pointed at) this repository before the workflow can go green.
-- Confirm real test count / binary size for the provisional baselines.
+- Confirm the scaffold-derived baselines (7 tests, 3–30 MB binary) against the production module / ADO build 98100.
 - Should `coverage.out` be uploaded as an artifact now that it is cheap to do so?
 - Is 90-day artifact retention acceptable, or should `retention-days: 30` be set to match ADO?

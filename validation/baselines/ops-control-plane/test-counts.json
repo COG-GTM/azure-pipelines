@@ -1,10 +1,10 @@
 {
   "service": "ops-control-plane",
-  "expected_test_suites": 0,
-  "expected_total_tests": 0,
+  "expected_test_suites": 1,
+  "expected_total_tests": 7,
   "minimum_pass_rate": 1.0,
-  "expected_coverage_percent": 0,
+  "expected_coverage_percent": 38,
   "frameworks": ["go test"],
   "last_updated": "2026-09-08",
-  "notes": "Provisional. The Go module for ops-control-plane is not present in this repository, so package/test counts could not be measured. platform-team should replace the zero values with the counts from the last successful ADO run (build 98100, 2026-03-13) before this baseline is used for parity comparison."
+  "notes": "Measured from services/ops-control-plane (go test ./... -v): 1 package (internal/controls), TestRegistryOperations + 6 subtests = 7 '--- PASS' entries, which is how go test -v / go test -json report them. Coverage 38% is `go tool cover -func` total across the module (internal/controls is 100%, cmd/server is uncovered). platform-team to confirm against ADO build 98100."
 }
