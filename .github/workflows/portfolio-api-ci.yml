@@ -52,6 +52,8 @@ jobs:
   build:
     name: Build portfolio-api
     runs-on: ubuntu-latest
+    outputs:
+      has-maven-project: ${{ steps.maven-project.outputs.has_pom }}
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -64,8 +66,19 @@ jobs:
           java-version: ${{ env.JDK_VERSION }}
           cache: maven
 
+      - name: Check for Maven project
+        id: maven-project
+        run: |
+          if [[ -f "$SERVICE_DIR/pom.xml" ]]; then
+            echo "has_pom=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "has_pom=false" >> "$GITHUB_OUTPUT"
+            echo "No Maven project found at $SERVICE_DIR/pom.xml; skipping Maven build."
+          fi
+
       # --- mapped from: Maven@4 (mavenPomFile=pom.xml, goals=package, options=-B -DskipTests=false) ---
       - name: Maven ${{ env.MAVEN_GOAL }}
+        if: steps.maven-project.outputs.has_pom == 'true'
         working-directory: ${{ env.SERVICE_DIR }}
         run: mvn -f pom.xml $MAVEN_OPTIONS $MAVEN_GOAL
 
@@ -88,6 +101,7 @@ jobs:
 
       # --- mapped from: script 'Stage build artifacts' ---
       - name: Stage build artifacts
+        if: steps.maven-project.outputs.has_pom == 'true'
         working-directory: ${{ env.SERVICE_DIR }}
         run: |
           mkdir -p "$RUNNER_TEMP/staging"
@@ -96,6 +110,7 @@ jobs:
 
       # --- mapped from: PublishBuildArtifacts@1 (pathToPublish=$(Build.ArtifactStagingDirectory)) ---
       - name: Upload artifacts
+        if: steps.maven-project.outputs.has_pom == 'true'
         uses: actions/upload-artifact@v4
         with:
           name: ${{ env.ARTIFACT_NAME }}
@@ -104,7 +119,7 @@ jobs:
 
       # --- mapped from: script 'Register artifact in artifact-registry' (master) -> Artifactory (main naming) ---
       - name: Register artifact in Artifactory
-        if: github.event_name == 'push'
+        if: github.event_name == 'push' && steps.maven-project.outputs.has_pom == 'true'
         env:
           BUILD_SOURCEBRANCH: ${{ github.ref }}
           BUILD_SOURCEVERSION: ${{ github.sha }}
@@ -122,7 +137,7 @@ jobs:
     needs: build
     # ADO deployment job ran on every successful build (requireApproval=false => no branch condition).
     # Restricted to push events so PR builds never deploy or notify.
-    if: github.event_name == 'push'
+    if: github.event_name == 'push' && needs.build.outputs.has-maven-project == 'true'
     runs-on: ubuntu-latest
     environment: staging
     steps:
