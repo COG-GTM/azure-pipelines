@@ -1,0 +1,10 @@
+{
+  "service": "frontend-workbench",
+  "expected_test_suites": 0,
+  "expected_total_tests": 0,
+  "minimum_pass_rate": 1.0,
+  "expected_coverage_percent": 0,
+  "frameworks": ["jest"],
+  "last_updated": "2026-09-08",
+  "status": "provisional — team-frontend to supply counts from a recent ADO run"
+}

@@ -1,0 +1,14 @@
+{
+  "artifact_name": "frontend-workbench-bundle",
+  "service": "frontend-workbench",
+  "expected_file_count": 1,
+  "expected_file_types": [".zip"],
+  "expected_contents": [
+    "frontend-workbench-bundle.zip"
+  ],
+  "min_artifact_size_mb": 1,
+  "max_artifact_size_mb": 50,
+  "last_updated": "2026-09-08",
+  "updated_by": "devin (provisional — team-frontend to confirm)",
+  "status": "provisional"
+}
