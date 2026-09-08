@@ -1,0 +1,160 @@
+# risk-batch-legacy CI workflow
+# Migrated from: services/risk-batch/azure-pipelines-legacy.yml (ADO pipeline ID 105)
+# Stack: Python 3.9 / unittest / setup.py sdist+bdist_wheel
+# Original template source: legacy/master-support (frozen compatibility branch)
+#
+# ADO templates inlined:
+#   - templates/legacy/build-python-legacy.yml@legacy/master-support
+#
+# ADO had `trigger: none` and was started by an unidentified external
+# downstream job. This workflow exposes `workflow_dispatch` (manual) and
+# `repository_dispatch` (API replacement for the external trigger). The
+# `pull_request` trigger only lints this workflow when it or its ADO source
+# changes — it is not a CI trigger for risk-batch code.
+# Mapping: docs/migration/risk-batch-legacy-ado-to-gha-mapping.md
+name: risk-batch-legacy
+
+on:
+  # --- mapped from: trigger: none (manual queue in ADO) ---
+  workflow_dispatch:
+    inputs:
+      pythonVersion:
+        description: Python version (legacy template parameter; ADO pinned 3.9)
+        type: string
+        default: '3.9'
+      reason:
+        description: Who/what is triggering this run (helps identify the legacy external caller)
+        type: string
+        default: manual
+  # --- mapped from: external downstream trigger (caller unknown; see mapping doc) ---
+  repository_dispatch:
+    types: [risk-batch-legacy]
+  # Not in ADO. Validates this workflow file on PRs only.
+  pull_request:
+    branches: [main]
+    paths:
+      - '.github/workflows/risk-batch-legacy.yml'
+      - 'services/risk-batch/azure-pipelines-legacy.yml'
+      - 'templates/legacy/build-python-legacy.yml'
+
+permissions:
+  contents: read
+
+env:
+  # --- mapped from: template parameters (build-python-legacy.yml) ---
+  PYTHON_VERSION: ${{ github.event.inputs.pythonVersion || github.event.client_payload.pythonVersion || '3.9' }}
+  REQUIREMENTS_FILE: requirements.txt
+  ARTIFACT_NAME: risk-batch-legacy
+  # Legacy template ran from the repository root ($(Build.SourcesDirectory)).
+  LEGACY_WORKDIR: .
+  # --- ADO variable shims ---
+  BUILD_SOURCEBRANCH: ${{ github.ref }}
+  BUILD_SOURCEVERSION: ${{ github.sha }}
+  BUILD_BUILDID: ${{ github.run_id }}
+  BUILD_SOURCESDIRECTORY: ${{ github.workspace }}
+  PIPELINE_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+
+concurrency:
+  group: risk-batch-legacy-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+jobs:
+  # --- mapped from: stage Build / job legacy_build ---
+  build:
+    name: Build (legacy_build)
+    # --- mapped from: pool vmImage ubuntu-20.04 (image retired on hosted runners) ---
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      # --- mapped from: UsePythonVersion@0 (versionSpec: 3.9) ---
+      - name: Use Python ${{ env.PYTHON_VERSION }}
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+
+      # --- mapped from: script 'Install dependencies' ---
+      # VG 201 shared-ci-secrets provided PIP_INDEX_URL in ADO; optional repo variable here.
+      - name: Install dependencies
+        env:
+          PIP_INDEX_URL_OVERRIDE: ${{ vars.PIP_INDEX_URL }}
+        run: |
+          cd "$LEGACY_WORKDIR"
+          if [ -n "${PIP_INDEX_URL_OVERRIDE:-}" ]; then export PIP_INDEX_URL="$PIP_INDEX_URL_OVERRIDE"; fi
+          python -m pip install --upgrade pip
+          pip install -r "$REQUIREMENTS_FILE"
+
+      # --- mapped from: script 'Run tests (unittest)' ---
+      - name: Run tests (unittest)
+        run: |
+          cd "$LEGACY_WORKDIR"
+          set -o pipefail
+          python -m unittest discover -s tests -p "test_*.py" -v 2>&1 | tee test-output.txt
+
+      # Not in ADO: legacy template never published test-output.txt; kept for triage.
+      - name: Upload unittest output
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ env.ARTIFACT_NAME }}-test-output
+          path: ${{ env.LEGACY_WORKDIR }}/test-output.txt
+          if-no-files-found: ignore
+
+      # --- mapped from: script 'Build package' ---
+      - name: Build package
+        run: |
+          cd "$LEGACY_WORKDIR"
+          python setup.py sdist bdist_wheel
+
+      # --- mapped from: PublishBuildArtifacts@1 (pathToPublish: dist/, artifactName: risk-batch-legacy) ---
+      - name: Publish artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ env.ARTIFACT_NAME }}
+          path: ${{ env.LEGACY_WORKDIR }}/dist/
+          if-no-files-found: error
+
+  # Not an ADO stage. Records who triggered the run (to identify the legacy
+  # external caller) and makes explicit which central-template integrations
+  # the legacy pipeline never performed, so the parity gap vs risk-batch-ci
+  # (ADO 104) is visible in every run summary.
+  parity-notes:
+    name: Trigger audit and parity notes
+    needs: build
+    if: always()
+    runs-on: ubuntu-latest
+    env:
+      BUILD_RESULT: ${{ needs.build.result }}
+    steps:
+      - name: Record trigger source (external caller audit)
+        env:
+          DISPATCH_REASON: ${{ github.event.inputs.reason }}
+          CLIENT_PAYLOAD: ${{ toJSON(github.event.client_payload) }}
+        run: |
+          {
+            echo "## risk-batch-legacy trigger audit"
+            echo "- event: \`$GITHUB_EVENT_NAME\`"
+            echo "- actor: \`$GITHUB_ACTOR\`"
+            echo "- ref: \`$GITHUB_REF\` @ \`$GITHUB_SHA\`"
+            echo "- dispatch reason: \`${DISPATCH_REASON:-n/a}\`"
+            echo "- repository_dispatch payload: \`${CLIENT_PAYLOAD:-null}\`"
+            echo "- build job result: \`$BUILD_RESULT\`"
+            echo "- run: $PIPELINE_URL"
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Artifactory publish not performed (legacy parity note)
+        run: |
+          echo "- Artifactory: legacy template has no publish_artifact.py step; artifact '$ARTIFACT_NAME' is only uploaded to GitHub (parity with ADO 105)." >> "$GITHUB_STEP_SUMMARY"
+
+      - name: D2 release notify not performed (legacy parity note)
+        run: |
+          echo "- D2 notify: legacy pipeline has no release stage and never called notify_release_orchestrator.py." >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Compliance attestation not performed (legacy parity note)
+        run: |
+          echo "- Compliance attestation: legacy pipeline never called generate_attestation.py; no attestation record is produced." >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Test results note (unittest, no normalization)
+        run: |
+          echo "- Test results: raw unittest console output only (test-output.txt); no JUnit XML, no normalize_test_results.py." >> "$GITHUB_STEP_SUMMARY"

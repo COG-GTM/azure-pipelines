@@ -1,0 +1,11 @@
+{
+  "service": "risk-batch",
+  "expected_test_suites": 1,
+  "expected_total_tests": 0,
+  "minimum_pass_rate": 1.0,
+  "expected_coverage_percent": null,
+  "frameworks": ["unittest", "pytest"],
+  "last_updated": "2026-09-08",
+  "updated_by": "shared-ci-platform",
+  "_note": "Placeholder baseline. risk-batch source and tests are not in this repository; team-quant must populate expected_total_tests from the last successful ADO run of 104 (pytest) / 105 (unittest) before cut-over."
+}
