@@ -1,0 +1,14 @@
+{
+  "artifact_name": "market-sim-binary",
+  "service": "market-sim",
+  "expected_file_count": 1,
+  "expected_file_types": [""],
+  "expected_contents": [
+    "market-sim"
+  ],
+  "min_artifact_size_mb": 0.1,
+  "max_artifact_size_mb": 20,
+  "measured_from": "cargo build --release of services/market-sim on 2026-09-09 (release binary 473168 bytes). No artifact metadata for pipeline 108 exists in the ADO API dump; re-measure against a real ADO run when available",
+  "last_updated": "2026-09-09",
+  "updated_by": "ado-to-gha-migration (ADO pipeline 108)"
+}
