@@ -1,0 +1,11 @@
+{
+  "service": "risk-batch",
+  "expected_test_suites": 1,
+  "expected_total_tests": 10,
+  "minimum_pass_rate": 1.0,
+  "expected_coverage_percent": 96,
+  "frameworks": ["pytest"],
+  "last_updated": "2026-09-09",
+  "updated_by": "risk-batch-ci GHA migration",
+  "measurement": "pytest tests/ --junitxml --cov=src/ on services/risk-batch (PR #12 scaffold); JUnit tests attribute = 10 incl. 4 subTest records"
+}
