@@ -1,0 +1,119 @@
+# risk-batch-legacy CI workflow
+# Migrated from: services/risk-batch/azure-pipelines-legacy.yml (ADO pipeline ID 105)
+# Stack: Python 3.9 / setuptools / unittest
+# Original template source: legacy/master-support (frozen branch, no owner)
+#
+# ADO templates inlined:
+#   - templates/legacy/build-python-legacy.yml@legacy/master-support
+#     (parameters: pythonVersion='3.9', requirementsFile='requirements.txt',
+#      artifactName='risk-batch-legacy')
+#
+# The ADO pipeline had `trigger: none` and was only started by an external
+# downstream job that has not yet been identified. This workflow therefore has
+# no push trigger: it runs on workflow_dispatch (manual), repository_dispatch
+# (for the external caller once it is wired to the GitHub API), and on
+# pull_request for early CI feedback on the service and this workflow.
+
+name: risk-batch-legacy
+
+on:
+  workflow_dispatch:
+    inputs:
+      reason:
+        description: 'Why this legacy build is being run (recorded in the job summary)'
+        required: false
+        default: 'manual run'
+        type: string
+  repository_dispatch:
+    types: [risk-batch-legacy]
+  pull_request:
+    branches: [main]
+    paths:
+      - 'services/risk-batch/**'
+      - '.github/workflows/risk-batch-legacy.yml'
+
+permissions:
+  contents: read
+
+env:
+  # --- mapped from: template parameters (build-python-legacy.yml) ---
+  PYTHON_VERSION: '3.9'
+  REQUIREMENTS_FILE: 'requirements.txt'
+  ARTIFACT_NAME: 'risk-batch-legacy'
+  SERVICE_DIR: 'services/risk-batch'
+
+jobs:
+  # --- mapped from: stage Build / job legacy_build ---
+  build:
+    name: Build
+    # ADO pool vmImage 'ubuntu-20.04' is retired on both ADO and GHA hosted agents.
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: ${{ env.SERVICE_DIR }}
+    steps:
+      # --- mapped from: implicit ADO checkout ---
+      - uses: actions/checkout@v4
+
+      - name: Record dispatch context
+        working-directory: ${{ github.workspace }}
+        env:
+          DISPATCH_REASON: ${{ inputs.reason }}
+          CLIENT_PAYLOAD: ${{ toJSON(github.event.client_payload) }}
+        run: |
+          {
+            echo "### risk-batch-legacy"
+            echo "- event: \`${{ github.event_name }}\`"
+            if [ -n "$DISPATCH_REASON" ]; then echo "- reason: $DISPATCH_REASON"; fi
+            if [ "${{ github.event_name }}" = "repository_dispatch" ]; then
+              echo "- client_payload:"
+              echo '```json'
+              echo "$CLIENT_PAYLOAD"
+              echo '```'
+            fi
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      # --- mapped from: UsePythonVersion@0 (versionSpec: 3.9) ---
+      - name: Use Python ${{ env.PYTHON_VERSION }}
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+
+      # --- mapped from: script 'Install dependencies' ---
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r "$REQUIREMENTS_FILE"
+          # setup.py bdist_wheel needs the wheel package; the ADO hosted image
+          # preinstalled it, the setup-python toolcache does not.
+          pip install wheel
+
+      # --- mapped from: script 'Run tests (unittest)' ---
+      # Kept verbatim: the ADO script pipes through tee without pipefail, so a
+      # failing test run does not fail the step (pre-existing gap, see mapping doc).
+      - name: Run tests (unittest)
+        run: |
+          python -m unittest discover -s tests -p "test_*.py" -v 2>&1 | tee test-output.txt
+
+      # Not in ADO: the legacy template never published test-output.txt.
+      # Uploaded here so the unittest log survives the run.
+      - name: Upload unittest output
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ env.ARTIFACT_NAME }}-test-output
+          path: ${{ env.SERVICE_DIR }}/test-output.txt
+          if-no-files-found: warn
+
+      # --- mapped from: script 'Build package' ---
+      - name: Build package
+        run: |
+          python setup.py sdist bdist_wheel
+
+      # --- mapped from: PublishBuildArtifacts@1 (pathToPublish: dist/, artifactName: risk-batch-legacy) ---
+      - name: Publish artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ env.ARTIFACT_NAME }}
+          path: ${{ env.SERVICE_DIR }}/dist/
+          if-no-files-found: error

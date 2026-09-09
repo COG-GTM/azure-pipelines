@@ -1,0 +1,10 @@
+{
+  "service": "risk-batch",
+  "expected_test_suites": 1,
+  "expected_total_tests": 6,
+  "minimum_pass_rate": 1.0,
+  "frameworks": ["unittest", "pytest"],
+  "measured_with": "python -m unittest discover -s tests -p \"test_*.py\" -v (services/risk-batch, Python 3.9)",
+  "last_updated": "2026-09-09",
+  "updated_by": "risk-batch-legacy migration (ADO 105)"
+}
