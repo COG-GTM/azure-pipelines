@@ -20,7 +20,7 @@ the YAML in the repo was used as the source of truth.
 | ADO | GHA | Notes |
 |---|---|---|
 | `trigger.branches.include: [main]` | `on.push.branches: [main]` | 1:1 |
-| `trigger.paths.include: [services/ops-control-plane/**]` | `on.push.paths: ['services/ops-control-plane/**']` | 1:1 |
+| `trigger.paths.include: [services/ops-control-plane/**]` | `on.push.paths: ['services/ops-control-plane/**', '.github/workflows/ops-control-plane-ci.yml']` | Service path 1:1; **workflow's own path added** so workflow-only changes exercise the build |
 | *(no `pr:` block)* | `on.pull_request` (branches `main`, same paths) | **Intentional addition** — earlier CI feedback on PRs |
 | *(manual run via ADO UI)* | `on.workflow_dispatch` | Preserves ability to run manually |
 

@@ -2,7 +2,8 @@
   "artifact_name": "ops-control-plane-binary",
   "service": "ops-control-plane",
   "expected_file_count": 1,
-  "expected_file_types": ["(no extension — static linux/amd64 ELF binary)"],
+  "expected_file_types": [""],
+  "expected_file_types_note": "empty suffix — the artifact is a single extensionless static linux/amd64 ELF binary",
   "expected_contents": [
     "ops-control-plane"
   ],

@@ -20,12 +20,14 @@ on:
       - main
     paths:
       - 'services/ops-control-plane/**'
+      - '.github/workflows/ops-control-plane-ci.yml'
   # Not present in ADO — added for earlier CI feedback on PRs.
   pull_request:
     branches:
       - main
     paths:
       - 'services/ops-control-plane/**'
+      - '.github/workflows/ops-control-plane-ci.yml'
   workflow_dispatch:
 
 permissions:
