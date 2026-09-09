@@ -70,7 +70,7 @@
 
 The new `validation/baselines/market-sim/{expected-artifacts.json,test-counts.json}` baselines were measured from a real local run on 2026-09-09:
 
-- One artifact file: `market-sim`, a release ELF, 473168 bytes; size bounds 0.1–20 MB.
+- One artifact file: `market-sim`, a release ELF, 473168 bytes; `expected_file_types` is `[""]` (extensionless, matching `compare_artifacts.py` suffix scanning); size bounds 0.1–20 MB. No artifact metadata for pipeline 108 exists in the ADO API dump, so this is a local measurement of the #12 scaffold, not an ADO run — re-measure against a real ADO run when one is available.
 - Four tests, all in `src/lib.rs` unit tests; bin unittests 0; doctests 0.
 - Framework: `cargo test`.
 
