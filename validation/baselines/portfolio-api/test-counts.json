@@ -1,0 +1,10 @@
+{
+  "service": "portfolio-api",
+  "expected_test_suites": 1,
+  "expected_total_tests": 5,
+  "minimum_pass_rate": 1.0,
+  "frameworks": ["junit5"],
+  "source": "mvn -B -DskipTests=false clean package in services/portfolio-api (JDK 17.0.20, Maven 3.6.3, surefire 3.2.5): 1 suite (TEST-com.contoso.financial.portfolio.PortfolioTest.xml), 5 tests, 0 failures/errors/skipped",
+  "last_updated": "2026-09-09",
+  "updated_by": "portfolio-api-canary migration (ADO 103)"
+}
