@@ -41,7 +41,7 @@ env:
   ARTIFACT_NAME: frontend-workbench-bundle
   SERVICE_DIR: services/frontend-workbench
   # --- mapped from: $(Build.ArtifactStagingDirectory) ---
-  BUILD_ARTIFACTSTAGINGDIRECTORY: ${{ github.workspace }}/.staging
+  BUILD_ARTIFACTSTAGINGDIRECTORY: ${{ github.workspace }}/staging
 
 defaults:
   run:

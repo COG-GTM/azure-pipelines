@@ -76,7 +76,7 @@ All build steps run with `working-directory: services/frontend-workbench` (see Â
 | ADO | GHA |
 |---|---|
 | `variables.artifactName: frontend-workbench-bundle` | workflow `env.ARTIFACT_NAME` |
-| `$(Build.ArtifactStagingDirectory)` | `env.BUILD_ARTIFACTSTAGINGDIRECTORY = ${{ github.workspace }}/.staging` (created with `mkdir -p` in build; populated by `download-artifact` in deploy jobs) |
+| `$(Build.ArtifactStagingDirectory)` | `env.BUILD_ARTIFACTSTAGINGDIRECTORY = ${{ github.workspace }}/staging` (created with `mkdir -p` in build; populated by `download-artifact` in deploy jobs) |
 | `$(Build.BuildId)` (artifact suffix) | `${{ github.run_id }}` |
 | `variables['Build.SourceBranch']` | `github.ref` |
 | `${{ parameters.environment }}` | job `env.DEPLOY_ENVIRONMENT` (`dev` / `staging`) |
