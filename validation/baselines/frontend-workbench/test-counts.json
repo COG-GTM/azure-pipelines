@@ -1,0 +1,11 @@
+{
+  "service": "frontend-workbench",
+  "expected_test_suites": 1,
+  "expected_total_tests": 4,
+  "minimum_pass_rate": 1.0,
+  "expected_coverage_percent": null,
+  "frameworks": ["node:test"],
+  "status": "measured",
+  "notes": "Measured locally on Node 18.20.8 with `npm test -- --ci --coverage` in services/frontend-workbench: tests/app.test.js, 4 tests, 4 pass, 0 fail. The scaffold's test runner ignores --coverage, so no coverage figure is produced.",
+  "last_updated": "2026-09-09"
+}
