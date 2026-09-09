@@ -26,6 +26,9 @@ jobs:
         with:
           fetch-depth: 0
 
+      - name: Fetch template branches
+        run: git fetch --no-tags origin '+refs/heads/*:refs/remotes/origin/*'
+
       - name: Install actionlint
         run: |
           bash <(curl -sSL https://raw.githubusercontent.com/rhysd/actionlint/main/scripts/download-actionlint.bash)
@@ -119,7 +122,8 @@ jobs:
               --service "$SERVICE" \
               --ado-pipeline "$ADO_PIPELINE" \
               --gha-workflow "$wf" \
-              --baselines validation/baselines)
+              --baselines validation/baselines \
+              --repo-root "$GITHUB_WORKSPACE")
             REPORT="${REPORT}${RESULT}"$'\n\n'
           done
 
@@ -137,7 +141,8 @@ jobs:
                 --service "$SERVICE" \
                 --ado-pipeline "$ADO_PIPELINE" \
                 --gha-workflow "$wf" \
-                --baselines validation/baselines)
+                --baselines validation/baselines \
+                --repo-root "$GITHUB_WORKSPACE")
               REPORT="${REPORT}${RESULT}"$'\n\n'
             done
           fi
