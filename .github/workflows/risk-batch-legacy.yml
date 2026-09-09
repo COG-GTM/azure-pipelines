@@ -58,14 +58,15 @@ jobs:
       - name: Record dispatch context
         working-directory: ${{ github.workspace }}
         env:
+          EVENT_NAME: ${{ github.event_name }}
           DISPATCH_REASON: ${{ inputs.reason }}
           CLIENT_PAYLOAD: ${{ toJSON(github.event.client_payload) }}
         run: |
           {
             echo "### risk-batch-legacy"
-            echo "- event: \`${{ github.event_name }}\`"
+            echo "- event: \`$EVENT_NAME\`"
             if [ -n "$DISPATCH_REASON" ]; then echo "- reason: $DISPATCH_REASON"; fi
-            if [ "${{ github.event_name }}" = "repository_dispatch" ]; then
+            if [ "$EVENT_NAME" = "repository_dispatch" ]; then
               echo "- client_payload:"
               echo '```json'
               echo "$CLIENT_PAYLOAD"
