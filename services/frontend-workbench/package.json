@@ -1,0 +1,14 @@
+{
+  "name": "@contoso-financial/frontend-workbench",
+  "version": "0.1.0",
+  "private": true,
+  "engines": {
+    "node": ">=18"
+  },
+  "scripts": {
+    "lint": "node scripts/lint.js",
+    "build:react": "node scripts/build.js client",
+    "build:ssr": "node scripts/build.js ssr",
+    "test": "node scripts/test.js"
+  }
+}
