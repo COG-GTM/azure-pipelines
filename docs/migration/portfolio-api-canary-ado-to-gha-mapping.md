@@ -75,17 +75,21 @@ step — those live in `templates/release/*.yml`, which the canary never referen
 |---|---|---|---|
 | `Build` (`Build portfolio-api (canary - ${{ parameters.templateBranch }})`) → `build` | `build` (`Build portfolio-api (canary - ${{ inputs.template_branch \|\| 'main' }})`) | — | — |
 
-Compile-time template selection becomes the runtime step `Resolve template branch`, which
-emits `maven_goals` and `registry` outputs; every branch-specific value downstream reads these
-outputs. An unknown value fails the job (cannot happen via the `choice` input; guards manual
-`gh workflow run` misuse).
+Compile-time template selection becomes the runtime step `Resolve template branch`: it
+`git fetch`es the selected branch, reads `templates/build/build-java.yml` from it, and extracts the
+two values the build depends on (the `mavenGoals`/`mavenGoal` parameter default and the
+`--registry` argument of the register step) into `maven_goals` / `registry` outputs, so each
+dispatch really exercises the template as it currently exists on that branch. The values are
+compared with the snapshot in §1 and a `::warning` is emitted on drift (the build still uses the
+live values). An unknown branch fails the job (cannot happen via the `choice` input; guards
+manual `gh workflow run` misuse), as does a template that no longer exposes either value.
 
 ## 4. Task / step mapping
 
 | # | ADO task / step | GHA step | Translation notes |
 |---|---|---|---|
 | 0 | implicit `checkout: self` | `actions/checkout@v4` | |
-| — | `${{ if eq(parameters.templateBranch, …) }}` | `Resolve template branch` (`case` on `$TEMPLATE_BRANCH`) | `main` → `clean package` / `Artifactory`; others → `package` / `artifact-registry`. |
+| — | `${{ if eq(parameters.templateBranch, …) }}` + `resources.repositories[*].ref` | `Resolve template branch` (`git fetch origin <branch>` → `git show FETCH_HEAD:templates/build/build-java.yml` → parse goals default + `--registry`) | Live values from the selected branch; today `main` → `clean package` / `Artifactory`, others → `package` / `artifact-registry`. Warns on drift from that snapshot. |
 | 1 | `JavaToolInstaller@0` (17, x64, PreInstalled) | `actions/setup-java@v4` `distribution: temurin`, `java-version: 17`, `architecture: x64` | Hosted ADO images preinstall Temurin/Microsoft OpenJDK; Temurin chosen. No Maven cache (ADO had none). |
 | 2 | `Maven@4` | `mvn -f pom.xml -B -DskipTests=false <goals>` with `working-directory: services/portfolio-api` | See gap 1 for the pom location. |
 | 2b | `Maven@4.publishJUnitResults` + `**/surefire-reports/TEST-*.xml` | `Collect JUnit test results` (`find … -path '*/surefire-reports/TEST-*.xml' -exec cp --parents`) + `actions/upload-artifact@v4` (`if: always()`) | `find` replaces `**` (no globstar in GHA bash). `cp --parents` keeps module paths so multi-module reports cannot overwrite each other. No native test tab in GHA (gap 3). |
@@ -116,7 +120,7 @@ outputs. An unknown value fails the job (cannot happen via the `choice` input; g
 
 | ADO | GHA |
 |---|---|
-| `${{ if eq(parameters.templateBranch, 'main') }}` … (×4, compile time) | `case "$TEMPLATE_BRANCH"` in `Resolve template branch` (runtime) |
+| `${{ if eq(parameters.templateBranch, 'main') }}` … (×4, compile time) | `case "$TEMPLATE_BRANCH"` allowlist + fetch of that branch's template in `Resolve template branch` (runtime) |
 | `${{ if eq(parameters.publishArtifacts, true) }}` (default `true`, never overridden) | steps 3–5 always present |
 | `publishJUnitResults: ${{ parameters.runTests }}` (default `true`) | test-result steps always present, `if: always()` |
 | — | `if: github.event_name != 'pull_request'` on registry registration (new guard) |
@@ -144,9 +148,12 @@ workflow; it does not construct ADO URLs. **No script changes are required** for
    in `services/portfolio-api`. The workflow runs Maven, test collection and artifact staging with
    `working-directory: services/portfolio-api`. If ADO 103 really built at the root it depended on
    a checkout not represented in this repo (inventory §5.2 "scripts/source referenced but absent").
-2. **Template drift is snapshotted.** The workflow reproduces the four branches' `build-java.yml`
-   as they exist today. Future edits to a template branch are not picked up automatically — the
-   two-value table in §1 must be re-checked, or (preferred) the canary retired.
+2. **Only two template values are read live.** The workflow fetches the selected branch's
+   `build-java.yml` and takes Maven goals and the registry name from it, but the remaining steps
+   (JDK install, test collection, staging, upload) are translated once from the shape all four
+   branches share today. A branch that adds/removes/reorders steps would not be reflected; the
+   drift warning only covers the two extracted values. Re-check §1 when that happens, or
+   (preferred) retire the canary.
 3. **Test reporting.** No GHA equivalent of the ADO Tests tab; JUnit XML is uploaded as an
    artifact. `dorny/test-reporter` could be added later if a rendered report is wanted.
 4. **`upload-artifact` with an empty staging dir** warns instead of silently succeeding as
@@ -166,6 +173,10 @@ If the real Artifactory publish path is wired in later it will need `ARTIFACT_RE
 
 ## 11. Validation
 
+- The generic validator expands the ADO source with a single repository ref (`main`), so its
+  scorecard covers the `main` variant only; the other three variants were verified manually
+  (§1 diff, local run of the `master` step sequence) and are exercised at runtime by the
+  `Resolve template branch` fetch. The validator itself is out of scope for this PR.
 - `validate-migration` routing: `portfolio-api-canary` → service `portfolio-api`,
   ADO source `services/portfolio-api/azure-pipelines-canary.yml` (one `case` arm added to
   `.github/workflows/validate-migration.yml`; validator logic untouched).
