@@ -1,0 +1,20 @@
+{
+  "artifact_name": "frontend-workbench-bundle",
+  "service": "frontend-workbench",
+  "expected_file_count": 1,
+  "expected_file_types": [".zip"],
+  "expected_contents": [
+    "frontend-workbench-bundle.zip"
+  ],
+  "expected_zip_entries": [
+    "index.html",
+    "client/bundle.js",
+    "ssr/server.js"
+  ],
+  "min_artifact_size_mb": 0.001,
+  "max_artifact_size_mb": 5,
+  "status": "measured",
+  "notes": "Measured locally from services/frontend-workbench on Node 18.20.8: npm ci && npm run lint && npm run build:react && npm run build:ssr, then zip of build/ (no root folder) = 1547 bytes containing 3 files.",
+  "last_updated": "2026-09-09",
+  "updated_by": "devin-migration-106"
+}
