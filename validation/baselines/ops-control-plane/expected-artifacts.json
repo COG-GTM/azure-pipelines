@@ -1,0 +1,15 @@
+{
+  "artifact_name": "ops-control-plane-binary",
+  "service": "ops-control-plane",
+  "expected_file_count": 1,
+  "expected_file_types": [""],
+  "expected_file_types_note": "empty suffix — the artifact is a single extensionless static linux/amd64 ELF binary",
+  "expected_contents": [
+    "ops-control-plane"
+  ],
+  "min_artifact_size_mb": 4,
+  "max_artifact_size_mb": 12,
+  "last_updated": "2026-09-09",
+  "updated_by": "devin-migration",
+  "measured_from": "local run of `CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -ldflags=\"-s -w\" ./cmd/server` on main (5.98 MB output)"
+}

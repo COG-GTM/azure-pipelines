@@ -1,0 +1,107 @@
+# ops-control-plane-ci CI workflow
+# Migrated from: services/ops-control-plane/azure-pipelines.yml (ADO pipeline ID 109)
+# Stack: Go 1.22
+# Original template source: none (inline) — Category 4 custom inline pipeline
+#
+# ADO templates inlined:
+#   - none (the ADO pipeline declares no resources.repositories and no template: references)
+#
+# ADO stage "Build" (job build_go) → GHA job "build" below.
+# Variable group `ops-infra-credentials` (VG 211, K8s token) is bound to ADO
+# pipeline 109 but no ADO step consumes it, so no deploy job is created here.
+# See docs/migration/ops-control-plane-ci-ado-to-gha-mapping.md.
+
+name: ops-control-plane-ci
+
+on:
+  # --- mapped from: trigger.branches.include [main] + trigger.paths.include ---
+  push:
+    branches:
+      - main
+    paths:
+      - 'services/ops-control-plane/**'
+      - '.github/workflows/ops-control-plane-ci.yml'
+  # Not present in ADO — added for earlier CI feedback on PRs.
+  pull_request:
+    branches:
+      - main
+    paths:
+      - 'services/ops-control-plane/**'
+      - '.github/workflows/ops-control-plane-ci.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+# --- mapped from: variables ---
+env:
+  MODULE_PATH: services/ops-control-plane
+  GO_VERSION: '1.22'
+  STAGING_DIR: ${{ github.workspace }}/staging
+  # ADO variable shims (GOPATH/GOBIN were declared in ADO but actions/setup-go
+  # manages GOPATH; kept for parity with the ADO definition).
+  BUILD_SOURCEBRANCH: ${{ github.ref }}
+  BUILD_SOURCEVERSION: ${{ github.sha }}
+  BUILD_BUILDID: ${{ github.run_id }}
+  PIPELINE_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+
+jobs:
+  # --- mapped from: stage Build / job build_go ("Go build and test") ---
+  build:
+    name: Build ops-control-plane
+    # --- mapped from: pool.vmImage ubuntu-latest ---
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        # --- mapped from: workingDirectory: $(modulePath) ---
+        working-directory: services/ops-control-plane
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      # --- mapped from: GoTool@0 (version 1.22) ---
+      - name: Install Go 1.22
+        uses: actions/setup-go@v5
+        with:
+          go-version: ${{ env.GO_VERSION }}
+          cache-dependency-path: services/ops-control-plane/go.sum
+
+      # --- mapped from: script "Download modules" ---
+      - name: Download modules
+        run: |
+          go mod download
+          go mod verify
+
+      # --- mapped from: script "Vet" ---
+      - name: Vet
+        run: go vet ./...
+
+      # --- mapped from: script "Run tests" ---
+      - name: Run tests
+        run: |
+          go test ./... -v -coverprofile=coverage.out
+
+      # Not present in ADO (no PublishTestResults@2 / PublishCodeCoverageResults task).
+      # coverage.out is preserved as an artifact so the coverage profile is not lost.
+      - name: Upload coverage profile
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: ops-control-plane-coverage
+          path: services/ops-control-plane/coverage.out
+          if-no-files-found: ignore
+
+      # --- mapped from: script "Build binary" ---
+      - name: Build binary
+        run: |
+          mkdir -p "$STAGING_DIR"
+          CGO_ENABLED=0 GOOS=linux GOARCH=amd64 \
+            go build -ldflags="-s -w" -o "$STAGING_DIR/ops-control-plane" ./cmd/server
+
+      # --- mapped from: PublishBuildArtifacts@1 (artifactName ops-control-plane-binary) ---
+      - name: Publish binary
+        uses: actions/upload-artifact@v4
+        with:
+          name: ops-control-plane-binary
+          path: ${{ env.STAGING_DIR }}
+          if-no-files-found: error
