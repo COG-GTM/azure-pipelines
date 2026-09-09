@@ -1,0 +1,194 @@
+# portfolio-api-ci CI workflow
+# Migrated from: services/portfolio-api/azure-pipelines.yml (ADO pipeline ID 102)
+# Stack: Java 17 / Maven
+# Original template source: shared-ci-platform @ master (legacy template set)
+#
+# ADO templates inlined (read from origin/master):
+#   - templates/build/build-java.yml        (jdkVersion=17, mavenGoal=package, artifactName=portfolio-api-dist)
+#   - templates/release/release-standard.yml (environment=staging, artifactName=portfolio-api-dist;
+#                                             defaults: deployStrategy=rolling, requireApproval=false,
+#                                             notifyReleaseOrchestrator=true)
+#
+# Build/test/deploy behaviour follows the master-branch templates the pipeline
+# actually consumes. Integration step names use the main-branch conventions
+# (Artifactory / D2 / attestation-database) since those are the only scripts
+# present in the repo. Mapping and known gaps:
+#   docs/migration/portfolio-api-ci-ado-to-gha-mapping.md
+
+name: portfolio-api-ci
+
+on:
+  # --- mapped from: trigger.branches.include [main, master] / trigger.paths.include [services/portfolio-api/**] ---
+  push:
+    branches:
+      - main
+      - master
+    paths:
+      - 'services/portfolio-api/**'
+      - 'build-tools/scripts/publish_artifact.py'
+      - 'build-tools/scripts/notify_release_orchestrator.py'
+      - 'build-tools/scripts/generate_attestation.py'
+      - '.github/workflows/portfolio-api-ci.yml'
+  # Added during migration: the ADO pipeline had no PR trigger.
+  pull_request:
+    branches:
+      - main
+      - master
+    paths:
+      - 'services/portfolio-api/**'
+      - 'build-tools/scripts/publish_artifact.py'
+      - 'build-tools/scripts/notify_release_orchestrator.py'
+      - 'build-tools/scripts/generate_attestation.py'
+      - '.github/workflows/portfolio-api-ci.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+# --- mapped from: variables (artifactName) + build-java.yml@master parameter values ---
+env:
+  ARTIFACT_NAME: portfolio-api-dist
+  JDK_VERSION: '17'
+  MAVEN_GOAL: package
+  MAVEN_OPTIONS: -B -DskipTests=false
+  SERVICE_DIR: services/portfolio-api
+
+concurrency:
+  group: portfolio-api-ci-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+jobs:
+  # --- mapped from: stage Build ('Build portfolio-api') / job build -> templates/build/build-java.yml@master ---
+  build:
+    name: Build portfolio-api
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      # --- mapped from: JavaToolInstaller@0 (versionSpec=17, jdkArchitectureOption=x64, jdkSourceOption=PreInstalled) ---
+      - name: Install JDK ${{ env.JDK_VERSION }}
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: ${{ env.JDK_VERSION }}
+          cache: maven
+          cache-dependency-path: services/portfolio-api/pom.xml
+
+      # --- mapped from: Maven@4 (mavenPomFile=pom.xml, goals=package, options=-B -DskipTests=false) ---
+      - name: Maven ${{ env.MAVEN_GOAL }}
+        working-directory: ${{ env.SERVICE_DIR }}
+        run: mvn -f pom.xml $MAVEN_OPTIONS $MAVEN_GOAL
+
+      # --- mapped from: Maven@4 publishJUnitResults=true, testResultsFiles=**/surefire-reports/TEST-*.xml ---
+      # `**` is resolved with find (GHA bash has globstar off); results are kept even when tests fail.
+      - name: Collect JUnit test results
+        if: always()
+        run: |
+          mkdir -p "$RUNNER_TEMP/test-results"
+          find "$SERVICE_DIR" -path '*/surefire-reports/TEST-*.xml' -exec cp --parents {} "$RUNNER_TEMP/test-results/" \;
+          find "$RUNNER_TEMP/test-results" -type f
+
+      # --- mapped from: Maven@4 publishJUnitResults=true (GHA has no native test tab; published as an artifact) ---
+      - name: Upload test results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: portfolio-api-test-results
+          path: ${{ runner.temp }}/test-results
+          if-no-files-found: warn
+
+      # --- mapped from: script 'Stage build artifacts' (cp target/*.jar|*.war -> $(Build.ArtifactStagingDirectory)) ---
+      - name: Stage build artifacts
+        working-directory: ${{ env.SERVICE_DIR }}
+        run: |
+          mkdir -p "$RUNNER_TEMP/staging"
+          cp target/*.jar "$RUNNER_TEMP/staging/" 2>/dev/null || true
+          cp target/*.war "$RUNNER_TEMP/staging/" 2>/dev/null || true
+          ls -l "$RUNNER_TEMP/staging"
+
+      # --- mapped from: PublishBuildArtifacts@1 (pathToPublish=$(Build.ArtifactStagingDirectory), artifactName=portfolio-api-dist) ---
+      - name: Upload artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ env.ARTIFACT_NAME }}
+          path: ${{ runner.temp }}/staging
+          if-no-files-found: error
+
+      # --- mapped from: script 'Register artifact in artifact-registry' (master) -> 'Register artifact in Artifactory' (main naming) ---
+      # Guarded to push events so PR builds never register artifacts.
+      - name: Register artifact in Artifactory
+        if: github.event_name == 'push'
+        env:
+          BUILD_SOURCEBRANCH: ${{ github.ref }}
+          BUILD_SOURCEVERSION: ${{ github.sha }}
+          AGENT_NAME: ${{ runner.name }}
+          BUILD_ARTIFACTSTAGINGDIRECTORY: ${{ runner.temp }}/staging
+        run: |
+          python3 build-tools/scripts/publish_artifact.py \
+            --name "$ARTIFACT_NAME" \
+            --registry Artifactory \
+            --build-id "${{ github.run_id }}"
+
+  # --- mapped from: stage Release ('Release to staging', dependsOn: Build) -> templates/release/release-standard.yml@master
+  #     => stage Deploy_staging / deployment job 'deploy' (environment: staging, strategy: runOnce) ---
+  deploy-staging:
+    name: Deploy to staging
+    needs: build
+    # requireApproval=false in ADO => no branch condition; the deployment ran on every successful CI build.
+    # Restricted to push events so PR builds never deploy, notify D2 or write attestations.
+    if: github.event_name == 'push'
+    runs-on: ubuntu-latest
+    environment: staging
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      # --- mapped from: download: current, artifact: portfolio-api-dist ---
+      - name: Download build artifacts
+        uses: actions/download-artifact@v4
+        with:
+          name: ${{ env.ARTIFACT_NAME }}
+          path: ${{ runner.temp }}/staging
+
+      # --- mapped from: script 'Execute deployment' (echo placeholder in ADO as well) ---
+      - name: Execute deployment
+        run: |
+          echo "Deploying $ARTIFACT_NAME to staging"
+          echo "Strategy: rolling"
+          ls -l "$RUNNER_TEMP/staging"
+
+      # --- mapped from: script 'Notify release-orchestrator' (master) -> 'Notify D2' (main naming); notifyReleaseOrchestrator=true ---
+      - name: Notify D2
+        env:
+          BUILD_REQUESTEDFOR: ${{ github.actor }}
+          PIPELINE_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        run: |
+          python3 build-tools/scripts/notify_release_orchestrator.py \
+            --service "$ARTIFACT_NAME" \
+            --env staging \
+            --build-id "${{ github.run_id }}" \
+            --status success
+
+      # --- mapped from: script 'Generate compliance attestation' (generate_attestation.py) ---
+      # Fresh runner: the staging directory the script writes to must be created first.
+      - name: Generate compliance attestation
+        env:
+          BUILD_SOURCEBRANCH: ${{ github.ref }}
+          BUILD_SOURCEVERSION: ${{ github.sha }}
+          BUILD_DEFINITIONNAME: ${{ github.workflow }}
+          AGENT_OS: ${{ runner.os }}
+          BUILD_ARTIFACTSTAGINGDIRECTORY: ${{ runner.temp }}/attestation
+        run: |
+          mkdir -p "$BUILD_ARTIFACTSTAGINGDIRECTORY"
+          python3 build-tools/scripts/generate_attestation.py \
+            --artifact "$ARTIFACT_NAME" \
+            --env staging \
+            --build-id "${{ github.run_id }}"
+
+      # Added during migration: ADO left the attestation JSON on the agent; GHA keeps it as a run artifact.
+      - name: Upload compliance attestation
+        uses: actions/upload-artifact@v4
+        with:
+          name: portfolio-api-staging-attestation
+          path: ${{ runner.temp }}/attestation

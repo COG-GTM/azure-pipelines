@@ -1,0 +1,11 @@
+{
+  "service": "portfolio-api",
+  "expected_test_suites": 1,
+  "expected_total_tests": 5,
+  "minimum_pass_rate": 1.0,
+  "expected_coverage_percent": null,
+  "frameworks": ["junit5-surefire"],
+  "measured_from": "services/portfolio-api scaffold, `mvn -B -DskipTests=false package` with JDK 17 (target/surefire-reports/TEST-com.contoso.financial.portfolio.PortfolioTest.xml: tests=5, failures=0, errors=0, skipped=0)",
+  "last_updated": "2026-09-09",
+  "updated_by": "portfolio-api-ci migration (ADO 102)"
+}
