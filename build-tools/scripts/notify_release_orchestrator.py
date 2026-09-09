@@ -22,7 +22,8 @@ def notify(service: str, env: str, build_id: str, status: str):
         "build_id": build_id,
         "status": status,
         "timestamp": datetime.now(timezone.utc).isoformat(),
-        "pipeline_url": os.environ.get("SYSTEM_TEAMFOUNDATIONCOLLECTIONURI", "")
+        "pipeline_url": os.environ.get("PIPELINE_URL")
+        or os.environ.get("SYSTEM_TEAMFOUNDATIONCOLLECTIONURI", "")
         + os.environ.get("SYSTEM_TEAMPROJECT", "")
         + "/_build/results?buildId="
         + build_id,
