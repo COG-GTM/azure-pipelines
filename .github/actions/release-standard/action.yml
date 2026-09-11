@@ -1,0 +1,42 @@
+# GHA environment protection rules (required reviewers) replace ADO requireApproval; the caller job must set environment.
+name: Standard release
+description: Deploy an artifact and run release integrations
+inputs:
+  environment:
+    description: Deployment environment
+    required: true
+  artifact-name:
+    description: Artifact to deploy
+    required: true
+  deploy-strategy:
+    description: Deployment strategy
+    default: rolling
+  notify-release-orchestrator:
+    description: Notify the release orchestrator
+    default: 'true'
+runs:
+  using: composite
+  steps:
+    - name: Map ADO environment
+      uses: ./.github/actions/ado-env-shim
+
+    - name: Download artifact
+      uses: actions/download-artifact@v4
+      with:
+        name: ${{ inputs.artifact-name }}
+        path: ${{ runner.temp }}/staging/${{ inputs.artifact-name }}
+
+    - name: Execute deployment
+      shell: bash
+      run: |
+        echo "Deploying ${{ inputs.artifact-name }} to ${{ inputs.environment }}"
+        echo "Strategy: ${{ inputs.deploy-strategy }}"
+
+    - name: Notify D2
+      if: inputs.notify-release-orchestrator == 'true'
+      shell: bash
+      run: python "$BUILD_SOURCESDIRECTORY/build-tools/scripts/notify_release_orchestrator.py" --service "${{ inputs.artifact-name }}" --env "${{ inputs.environment }}" --build-id "$GITHUB_RUN_ID" --status success
+
+    - name: Generate compliance attestation
+      shell: bash
+      run: python "$BUILD_SOURCESDIRECTORY/build-tools/scripts/generate_attestation.py" --artifact "${{ inputs.artifact-name }}" --env "${{ inputs.environment }}" --build-id "$GITHUB_RUN_ID"
