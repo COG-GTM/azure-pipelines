@@ -14,6 +14,9 @@ import xml.etree.ElementTree as ET
 from pathlib import Path
 
 
+TRX_NAMESPACE = "http://microsoft.com/schemas/VisualStudio/TeamTest/2010"
+
+
 def parse_junit_xml(filepath: str) -> dict:
     """Parse JUnit XML test results."""
     tree = ET.parse(filepath)
@@ -39,6 +42,32 @@ def parse_junit_xml(filepath: str) -> dict:
     }
 
 
+def parse_trx(filepath: str) -> dict:
+    """Parse TRX test results from the Visual Studio test schema."""
+    tree = ET.parse(filepath)
+    root = tree.getroot()
+    counters = root.find(f".//{{{TRX_NAMESPACE}}}Counters")
+    if counters is None:
+        raise ValueError("TRX file does not contain a Counters element")
+
+    total = int(counters.get("total", 0))
+    failed = sum(
+        int(counters.get(attribute, 0))
+        for attribute in ("failed", "error", "timeout", "aborted")
+    )
+    skipped = sum(
+        int(counters.get(attribute, 0))
+        for attribute in ("notExecuted", "inconclusive")
+    )
+
+    return {
+        "total": total,
+        "passed": int(counters.get("passed", 0)),
+        "failed": failed,
+        "skipped": skipped,
+    }
+
+
 def normalize_results(input_dir: str, output_path: str):
     """Scan input directory and normalize all test result files."""
     results = []
@@ -49,6 +78,15 @@ def normalize_results(input_dir: str, output_path: str):
             parsed = parse_junit_xml(str(f))
             parsed["source"] = str(f.name)
             parsed["format"] = "junit-xml"
+            results.append(parsed)
+        except Exception as e:
+            print(f"WARNING: Could not parse {f}: {e}")
+
+    for f in input_path.rglob("*.trx"):
+        try:
+            parsed = parse_trx(str(f))
+            parsed["source"] = str(f.name)
+            parsed["format"] = "trx"
             results.append(parsed)
         except Exception as e:
             print(f"WARNING: Could not parse {f}: {e}")

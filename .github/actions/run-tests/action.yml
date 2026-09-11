@@ -21,7 +21,7 @@ runs:
       run: |
         results_dir="${{ inputs.test-results-dir }}"
         if [[ -z "$results_dir" ]]; then
-          results_dir="$BUILD_ARTIFACTSTAGINGDIRECTORY/test-results"
+          results_dir="$RUNNER_TEMP/test-results"
         fi
         echo "TEST_RESULTS_DIR=$results_dir" >> "$GITHUB_ENV"
         mkdir -p "$results_dir"
@@ -50,14 +50,14 @@ runs:
         JEST_JUNIT_OUTPUT_DIR: ${{ env.TEST_RESULTS_DIR }}
       run: npx jest --ci --reporters=jest-junit
 
+    - name: Normalize test results
+      if: always()
+      shell: bash
+      run: python "$BUILD_SOURCESDIRECTORY/build-tools/scripts/normalize_test_results.py" --input-dir "$TEST_RESULTS_DIR" --output "$TEST_RESULTS_DIR/normalized-results.json"
+
     - name: Publish test results
       if: always()
       uses: actions/upload-artifact@v4
       with:
         name: ${{ inputs.test-framework }}-test-results-${{ github.run_id }}
         path: ${{ env.TEST_RESULTS_DIR }}
-
-    - name: Normalize test results
-      if: always()
-      shell: bash
-      run: python "$BUILD_SOURCESDIRECTORY/build-tools/scripts/normalize_test_results.py" --input-dir "$TEST_RESULTS_DIR" --output "$BUILD_ARTIFACTSTAGINGDIRECTORY/normalized-results.json"

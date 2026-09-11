@@ -83,9 +83,9 @@ runs:
         if [[ "$test_project" == *'*'* ]]; then
           shopt -s globstar nullglob
           test_projects=( $test_project )
-          dotnet test "${test_projects[@]}" --configuration "${{ inputs.build-configuration }}" --no-build --collect:"XPlat Code Coverage" --logger "trx" --results-directory "$BUILD_ARTIFACTSTAGINGDIRECTORY/test-results"
+          dotnet test "${test_projects[@]}" --configuration "${{ inputs.build-configuration }}" --no-build --collect:"XPlat Code Coverage" --logger "trx" --results-directory "$RUNNER_TEMP/test-results"
         else
-          dotnet test "$test_project" --configuration "${{ inputs.build-configuration }}" --no-build --collect:"XPlat Code Coverage" --logger "trx" --results-directory "$BUILD_ARTIFACTSTAGINGDIRECTORY/test-results"
+          dotnet test "$test_project" --configuration "${{ inputs.build-configuration }}" --no-build --collect:"XPlat Code Coverage" --logger "trx" --results-directory "$RUNNER_TEMP/test-results"
         fi
 
     - name: Publish artifacts
