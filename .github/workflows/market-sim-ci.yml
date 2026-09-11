@@ -1,0 +1,100 @@
+# market-sim CI workflow
+# Migrated from: services/market-sim/azure-pipelines.yml (ADO pipeline ID 108)
+# Template source: none (inline ADO YAML; no composite build action)
+# Mapping document: docs/migration/market-sim-ci-ado-to-gha-mapping.md
+
+name: market-sim-ci
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'services/market-sim/**'
+      - '.github/workflows/market-sim-ci.yml'
+      - '.github/actions/**'
+  pull_request:
+    branches: [main]
+    paths:
+      - 'services/market-sim/**'
+      - '.github/workflows/market-sim-ci.yml'
+      - '.github/actions/**'
+  workflow_dispatch:
+
+env:
+  CARGO_TERM_COLOR: always
+  RUST_BACKTRACE: 1
+  ARTIFACT_NAME: market-sim-binary
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    name: Build market-sim
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    defaults:
+      run:
+        working-directory: services/market-sim
+    steps:
+      - name: Check out source
+        uses: actions/checkout@v4
+
+      - name: Set ADO compatibility variables
+        working-directory: ${{ github.workspace }}
+        run: |
+          staging_directory="$RUNNER_TEMP/staging"
+          mkdir -p "$staging_directory"
+          {
+            echo "BUILD_SOURCEBRANCH=$GITHUB_REF"
+            echo "BUILD_SOURCEVERSION=$GITHUB_SHA"
+            echo "BUILD_BUILDID=$GITHUB_RUN_ID"
+            echo "BUILD_DEFINITIONNAME=$GITHUB_WORKFLOW"
+            echo "BUILD_REPOSITORY_NAME=$GITHUB_REPOSITORY"
+            echo "BUILD_REQUESTEDFOR=$GITHUB_ACTOR"
+            echo "BUILD_SOURCESDIRECTORY=$GITHUB_WORKSPACE"
+            echo "BUILD_ARTIFACTSTAGINGDIRECTORY=$staging_directory"
+            echo "AGENT_NAME=$RUNNER_NAME"
+            echo "AGENT_OS=$RUNNER_OS"
+            echo "SYSTEM_TEAMFOUNDATIONCOLLECTIONURI=$GITHUB_SERVER_URL/"
+            echo "SYSTEM_TEAMPROJECT=$GITHUB_REPOSITORY"
+          } >> "$GITHUB_ENV"
+
+      - name: Install Rust
+        working-directory: ${{ github.workspace }}
+        run: |
+          curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y --default-toolchain stable
+          echo "$HOME/.cargo/bin" >> "$GITHUB_PATH"
+
+      - name: Fetch dependencies
+        run: cargo fetch
+
+      - name: Lint with clippy
+        run: cargo clippy -- -D warnings
+
+      - name: Build release binary
+        run: cargo build --release
+
+      - name: Run tests
+        run: cargo test -- --test-threads=1
+
+      - name: Stage binary
+        run: cp target/release/market-sim "$BUILD_ARTIFACTSTAGINGDIRECTORY/"
+
+      - name: Publish market-sim binary
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ env.ARTIFACT_NAME }}
+          path: ${{ runner.temp }}/staging
+          if-no-files-found: error
+
+  deploy:
+    name: Deploy market-sim
+    needs: build
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Deploy to cluster (managed outside D2)
+        run: |
+          echo "Deploying market-sim to compute cluster..."
+          echo "This deployment is managed outside D2"
