@@ -1,0 +1,10 @@
+{
+  "service": "market-sim",
+  "expected_test_suites": 1,
+  "expected_total_tests": 4,
+  "minimum_pass_rate": 1.0,
+  "expected_coverage_percent": null,
+  "frameworks": ["cargo test"],
+  "measured_from": "cargo test -- --test-threads=1 in services/market-sim on 2026-09-11: lib unittests 4 passed, bin unittests 0, doc-tests 0",
+  "last_updated": "2026-09-11"
+}
