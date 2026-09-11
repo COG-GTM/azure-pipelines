@@ -1,0 +1,10 @@
+{
+  "service": "ops-control-plane",
+  "expected_test_suites": 1,
+  "expected_total_tests": 7,
+  "minimum_pass_rate": 1.0,
+  "expected_coverage_percent": 38,
+  "frameworks": ["go test"],
+  "last_updated": "2026-09-11",
+  "measured_from": "local run of `go test ./... -v -coverprofile=coverage.out` in services/ops-control-plane on main: 1 top-level test (TestRegistryOperations) + 6 subtests in internal/controls (100% of statements); cmd/server has no tests; total statement coverage 38.3% (`go tool cover -func`)"
+}

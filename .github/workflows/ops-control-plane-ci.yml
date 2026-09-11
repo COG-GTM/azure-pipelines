@@ -1,0 +1,93 @@
+# ops-control-plane CI workflow
+# Migrated from: services/ops-control-plane/azure-pipelines.yml (ADO pipeline ID 109)
+# Template source: none (inline ADO YAML) — steps translated directly, no composite build action.
+# The ADO environment shim is set inline because .github/actions/ado-env-shim is not on main yet.
+# The K8s binding (VG 211 ops-infra-credentials, Track A blocker A4) is intentionally not ported.
+
+name: ops-control-plane-ci
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'services/ops-control-plane/**'
+      - '.github/workflows/ops-control-plane-ci.yml'
+      - '.github/actions/**'
+  pull_request:
+    branches: [main]
+    paths:
+      - 'services/ops-control-plane/**'
+      - '.github/workflows/ops-control-plane-ci.yml'
+      - '.github/actions/**'
+  workflow_dispatch:
+
+env:
+  MODULE_PATH: services/ops-control-plane
+  GO_VERSION: '1.22'
+  ARTIFACT_NAME: ops-control-plane-binary
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    name: Build ops-control-plane
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: services/ops-control-plane
+    steps:
+      - name: Check out source
+        uses: actions/checkout@v4
+
+      - name: Set ADO compatibility variables
+        working-directory: ${{ github.workspace }}
+        run: |
+          staging_directory="$RUNNER_TEMP/staging"
+          mkdir -p "$staging_directory"
+          {
+            echo "BUILD_SOURCEBRANCH=$GITHUB_REF"
+            echo "BUILD_SOURCEVERSION=$GITHUB_SHA"
+            echo "BUILD_BUILDID=$GITHUB_RUN_ID"
+            echo "BUILD_DEFINITIONNAME=$GITHUB_WORKFLOW"
+            echo "BUILD_REPOSITORY_NAME=$GITHUB_REPOSITORY"
+            echo "BUILD_REQUESTEDFOR=$GITHUB_ACTOR"
+            echo "BUILD_SOURCESDIRECTORY=$GITHUB_WORKSPACE"
+            echo "BUILD_ARTIFACTSTAGINGDIRECTORY=$staging_directory"
+            echo "GOPATH=$GITHUB_WORKSPACE/go"
+            echo "GOBIN=$GITHUB_WORKSPACE/go/bin"
+            echo "AGENT_NAME=$RUNNER_NAME"
+            echo "AGENT_OS=$RUNNER_OS"
+            echo "SYSTEM_TEAMFOUNDATIONCOLLECTIONURI=$GITHUB_SERVER_URL/"
+            echo "SYSTEM_TEAMPROJECT=$GITHUB_REPOSITORY"
+          } >> "$GITHUB_ENV"
+
+      - name: Install Go 1.22
+        uses: actions/setup-go@v5
+        with:
+          go-version: ${{ env.GO_VERSION }}
+          cache-dependency-path: services/ops-control-plane/go.sum
+
+      - name: Download modules
+        run: |
+          go mod download
+          go mod verify
+
+      - name: Vet
+        run: go vet ./...
+
+      - name: Run tests
+        run: |
+          go test ./... -v -coverprofile=coverage.out
+
+      - name: Build binary
+        run: |
+          CGO_ENABLED=0 GOOS=linux GOARCH=amd64 \
+            go build -ldflags="-s -w" -o "$BUILD_ARTIFACTSTAGINGDIRECTORY/ops-control-plane" ./cmd/server
+
+      - name: Publish binary
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ env.ARTIFACT_NAME }}
+          path: ${{ runner.temp }}/staging
+          if-no-files-found: error
