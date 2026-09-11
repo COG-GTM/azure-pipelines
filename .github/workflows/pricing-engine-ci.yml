@@ -1,0 +1,82 @@
+# pricing-engine CI workflow
+# Migrated from: services/pricing-engine/azure-pipelines.yml (ADO pipeline ID 101)
+# Template source: composite actions under .github/actions/ (mirrors templates/* on main)
+
+name: pricing-engine-ci
+
+on:
+  push:
+    branches: [main, 'release/*']
+    paths:
+      - 'services/pricing-engine/**'
+      - '.github/workflows/pricing-engine-ci.yml'
+      - '.github/actions/**'
+  pull_request:
+    branches: [main]
+    paths:
+      - 'services/pricing-engine/**'
+      - '.github/workflows/pricing-engine-ci.yml'
+      - '.github/actions/**'
+  workflow_dispatch:
+
+env:
+  BUILD_CONFIGURATION: Release
+  ARTIFACT_NAME: pricing-engine-drop
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    name: Build pricing-engine
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out source
+        uses: actions/checkout@v4
+
+      - name: Build .NET with Artifactory registration
+        uses: ./.github/actions/build-dotnet
+        with:
+          solution: services/pricing-engine/PricingEngine.sln
+          working-directory: services/pricing-engine
+          publish-project: services/pricing-engine/src/PricingEngine/PricingEngine.csproj
+          build-configuration: ${{ env.BUILD_CONFIGURATION }}
+          dotnet-version: 8.0.x
+          artifact-name: ${{ env.ARTIFACT_NAME }}
+
+      - name: Upload pricing-engine test results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: pricing-engine-test-results
+          path: ${{ runner.temp }}/test-results
+
+  test:
+    name: Run tests
+    needs: build
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out source
+        uses: actions/checkout@v4
+
+      - name: Run tests and normalize test results
+        uses: ./.github/actions/run-tests
+        with:
+          test-framework: generic
+          results-artifact: pricing-engine-test-results
+
+  deploy_dev:
+    name: Deploy to dev
+    needs: test
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    environment: dev
+    steps:
+      - name: Check out source
+        uses: actions/checkout@v4
+
+      - name: Deploy with D2 notification and compliance attestation
+        uses: ./.github/actions/release-standard
+        with:
+          environment: dev
+          artifact-name: ${{ env.ARTIFACT_NAME }}

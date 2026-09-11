@@ -1,0 +1,117 @@
+name: Build .NET solution
+description: Build, test, publish, and register a .NET solution
+inputs:
+  solution:
+    description: Solution or project to restore and build
+    default: '**/*.sln'
+  build-configuration:
+    description: Build configuration
+    default: Release
+  dotnet-version:
+    description: .NET SDK version
+    default: 8.0.x
+  publish-artifacts:
+    description: Publish and register build artifacts
+    default: 'true'
+  test-project:
+    description: Test project or projects
+    default: '**/*Tests/*.csproj'
+  run-tests:
+    description: Run unit tests
+    default: 'true'
+  artifact-name:
+    description: Uploaded artifact name
+    default: drop
+  working-directory:
+    description: Working directory for restore, build, and test commands
+    default: .
+  publish-project:
+    description: Web project to publish, or empty to auto-detect
+    default: ''
+runs:
+  using: composite
+  steps:
+    - name: Map ADO environment
+      uses: ./.github/actions/ado-env-shim
+
+    - name: Install .NET SDK ${{ inputs.dotnet-version }}
+      uses: actions/setup-dotnet@v4
+      with:
+        dotnet-version: ${{ inputs.dotnet-version }}
+
+    - name: Restore NuGet packages
+      shell: bash
+      working-directory: ${{ inputs.working-directory }}
+      run: |
+        solution="${{ inputs.solution }}"
+        if [[ "$solution" == "${{ inputs.working-directory }}/"* ]]; then
+          solution="${solution#${{ inputs.working-directory }}/}"
+        fi
+        if [[ "$solution" == *'*'* ]]; then
+          shopt -s globstar nullglob
+          solutions=( $solution )
+          dotnet restore "${solutions[@]}"
+        else
+          dotnet restore "$solution"
+        fi
+
+    - name: Build solution
+      shell: bash
+      working-directory: ${{ inputs.working-directory }}
+      run: |
+        solution="${{ inputs.solution }}"
+        if [[ "$solution" == "${{ inputs.working-directory }}/"* ]]; then
+          solution="${solution#${{ inputs.working-directory }}/}"
+        fi
+        if [[ "$solution" == *'*'* ]]; then
+          shopt -s globstar nullglob
+          solutions=( $solution )
+          dotnet build "${solutions[@]}" --configuration "${{ inputs.build-configuration }}" --no-restore
+        else
+          dotnet build "$solution" --configuration "${{ inputs.build-configuration }}" --no-restore
+        fi
+
+    - name: Run unit tests
+      if: inputs.run-tests == 'true'
+      shell: bash
+      working-directory: ${{ inputs.working-directory }}
+      run: |
+        test_project="${{ inputs.test-project }}"
+        if [[ "$test_project" == "${{ inputs.working-directory }}/"* ]]; then
+          test_project="${test_project#${{ inputs.working-directory }}/}"
+        fi
+        if [[ "$test_project" == *'*'* ]]; then
+          shopt -s globstar nullglob
+          test_projects=( $test_project )
+          dotnet test "${test_projects[@]}" --configuration "${{ inputs.build-configuration }}" --no-build --collect:"XPlat Code Coverage" --logger "trx" --results-directory "$RUNNER_TEMP/test-results"
+        else
+          dotnet test "$test_project" --configuration "${{ inputs.build-configuration }}" --no-build --collect:"XPlat Code Coverage" --logger "trx" --results-directory "$RUNNER_TEMP/test-results"
+        fi
+
+    - name: Publish artifacts
+      if: inputs.publish-artifacts == 'true'
+      shell: bash
+      run: |
+        publish_project="${{ inputs.publish-project }}"
+        if [[ -z "$publish_project" ]]; then
+          publish_project="$(find "$GITHUB_WORKSPACE/${{ inputs.working-directory }}" -name '*.csproj' -not -path '*Tests*' -print -quit)"
+        elif [[ "$publish_project" != /* ]]; then
+          publish_project="$GITHUB_WORKSPACE/$publish_project"
+        fi
+        if [[ -z "$publish_project" ]]; then
+          echo "No publishable web project found." >&2
+          exit 1
+        fi
+        dotnet publish "$publish_project" --configuration "${{ inputs.build-configuration }}" --no-build --output "$BUILD_ARTIFACTSTAGINGDIRECTORY"
+
+    - name: Upload build artifacts
+      if: inputs.publish-artifacts == 'true'
+      uses: actions/upload-artifact@v4
+      with:
+        name: ${{ inputs.artifact-name }}
+        path: ${{ runner.temp }}/staging
+
+    - name: Register artifact in Artifactory
+      if: inputs.publish-artifacts == 'true'
+      shell: bash
+      run: python "$BUILD_SOURCESDIRECTORY/build-tools/scripts/publish_artifact.py" --name "${{ inputs.artifact-name }}" --registry Artifactory --build-id "$GITHUB_RUN_ID"

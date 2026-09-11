@@ -1,0 +1,25 @@
+# Maps GitHub Actions context to the ADO predefined variables read by build-tools/**/*.py.
+name: ADO environment shim
+description: Map GitHub Actions context to ADO-compatible environment variables
+runs:
+  using: composite
+  steps:
+    - name: Set ADO compatibility variables
+      shell: bash
+      run: |
+        staging_directory="$RUNNER_TEMP/staging"
+        mkdir -p "$staging_directory"
+        {
+          echo "BUILD_SOURCEBRANCH=$GITHUB_REF"
+          echo "BUILD_SOURCEVERSION=$GITHUB_SHA"
+          echo "BUILD_BUILDID=$GITHUB_RUN_ID"
+          echo "BUILD_DEFINITIONNAME=$GITHUB_WORKFLOW"
+          echo "BUILD_REPOSITORY_NAME=$GITHUB_REPOSITORY"
+          echo "BUILD_REQUESTEDFOR=$GITHUB_ACTOR"
+          echo "BUILD_SOURCESDIRECTORY=$GITHUB_WORKSPACE"
+          echo "BUILD_ARTIFACTSTAGINGDIRECTORY=$staging_directory"
+          echo "AGENT_NAME=$RUNNER_NAME"
+          echo "AGENT_OS=$RUNNER_OS"
+          echo "SYSTEM_TEAMFOUNDATIONCOLLECTIONURI=$GITHUB_SERVER_URL/"
+          echo "SYSTEM_TEAMPROJECT=$GITHUB_REPOSITORY"
+        } >> "$GITHUB_ENV"

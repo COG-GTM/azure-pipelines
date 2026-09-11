@@ -1,0 +1,63 @@
+name: Run tests
+description: Run framework-specific tests and normalize their results
+inputs:
+  test-framework:
+    description: Test framework
+    default: generic
+  test-results-dir:
+    description: Test result directory, or empty for the staging test-results directory
+    default: ''
+  results-artifact:
+    description: Existing artifact to download before processing results
+    default: ''
+runs:
+  using: composite
+  steps:
+    - name: Map ADO environment
+      uses: ./.github/actions/ado-env-shim
+
+    - name: Create test results directory
+      shell: bash
+      run: |
+        results_dir="${{ inputs.test-results-dir }}"
+        if [[ -z "$results_dir" ]]; then
+          results_dir="$RUNNER_TEMP/test-results"
+        fi
+        echo "TEST_RESULTS_DIR=$results_dir" >> "$GITHUB_ENV"
+        mkdir -p "$results_dir"
+
+    - name: Download test results artifact
+      if: inputs.results-artifact != ''
+      uses: actions/download-artifact@v4
+      with:
+        name: ${{ inputs.results-artifact }}
+        path: ${{ env.TEST_RESULTS_DIR }}
+
+    - name: Run pytest
+      if: inputs.test-framework == 'pytest'
+      shell: bash
+      run: pytest tests/ --junitxml="$TEST_RESULTS_DIR/results.xml" --tb=short
+
+    - name: Run JUnit tests
+      if: inputs.test-framework == 'junit'
+      shell: bash
+      run: mvn test
+
+    - name: Run Jest tests
+      if: inputs.test-framework == 'jest'
+      shell: bash
+      env:
+        JEST_JUNIT_OUTPUT_DIR: ${{ env.TEST_RESULTS_DIR }}
+      run: npx jest --ci --reporters=jest-junit
+
+    - name: Normalize test results
+      if: always()
+      shell: bash
+      run: python "$BUILD_SOURCESDIRECTORY/build-tools/scripts/normalize_test_results.py" --input-dir "$TEST_RESULTS_DIR" --output "$TEST_RESULTS_DIR/normalized-results.json"
+
+    - name: Publish test results
+      if: always()
+      uses: actions/upload-artifact@v4
+      with:
+        name: ${{ inputs.test-framework }}-test-results-${{ github.run_id }}
+        path: ${{ env.TEST_RESULTS_DIR }}
