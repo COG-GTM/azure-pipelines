@@ -110,7 +110,7 @@ The tracking owner closes each draft when the replacing PR merges.
 | 105 risk-batch-legacy | Wave 2 fold | not started | |
 | 106 frontend-workbench-ci | E | not started | |
 | 107 regulatory-reporting | F | not started | |
-| 108 market-sim-ci | C | not started | |
-| 109 ops-control-plane-ci | C | not started | |
+| 108 market-sim-ci | C | migrated, 7/7 (ACR push not ported, A4 open) | #23 |
+| 109 ops-control-plane-ci | C | migrated, 7/7 (K8s deploy not ported, A4 open) | #22 |
 | 110–115 | F | not started | |
 | 116–118 | B | not started | |
