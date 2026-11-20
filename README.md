@@ -11,10 +11,11 @@ definitions used across all engineering teams.
 ## Repository Structure
 
 ```
+.github/workflows/  GitHub Actions: migration validation (and migrated *-ci workflows)
 templates/          Central shared build, test, and release templates
 alt-templates/      Team-maintained alternative templates
 build-tools/        Shared helper scripts and YAML fragments
-services/           Per-service CI pipeline definitions
+services/           Per-service ADO pipelines and runnable service scaffolds
 night-jobs/         Scheduled operational workloads
 adhoc/              One-off operational pipelines
 deprecated/         Old pipelines kept for reference
@@ -23,6 +24,15 @@ validation/         Migration validation baselines and scripts
 docs/               Platform documentation
 upstream-reference/ Original upstream examples (preserved for reference)
 ```
+
+## Architecture
+
+See [docs/architecture.md](docs/architecture.md) for how pipelines, templates, agent pools,
+downstream systems and migration validation fit together. The diagram below is generated from
+the editable Graphviz source [docs/diagrams/architecture.dot](docs/diagrams/architecture.dot)
+([SVG](docs/diagrams/architecture.svg)); run `docs/diagrams/render.sh` after editing it.
+
+![Shared CI platform architecture](docs/diagrams/architecture.png)
 
 ## Template Architecture
 
@@ -54,20 +64,23 @@ See [docs/branch-usage-notes.md](docs/branch-usage-notes.md) for details.
 
 ## Services
 
-| Service | Stack | Template Source |
-|---------|-------|-----------------|
-| pricing-engine | .NET | central templates |
-| portfolio-api | Java/Maven | central templates (master) |
-| risk-batch | Python | central templates (staging/preprod) |
-| market-sim | Rust | custom (inline) |
-| ops-control-plane | Go | custom (inline) |
-| frontend-workbench | Node/React | alt-templates (team/frontend-custom) |
-| regulatory-reporting | Python | hybrid (team-overrides + central) |
-| notebook-executor | Python | none (non-build workload) |
-| scenario-runner | Python | none (non-build workload) |
+| Service | Stack | Template Source | Runnable scaffold |
+|---------|-------|-----------------|-------------------|
+| pricing-engine | .NET 8 | central templates (main) | yes |
+| portfolio-api | Java 17/Maven | central templates (master; canary pins 4 refs) | yes |
+| risk-batch | Python | central templates (staging/preprod; legacy pipeline on legacy/master-support) | yes |
+| market-sim | Rust | custom (inline) | yes |
+| ops-control-plane | Go | custom (inline) | yes |
+| frontend-workbench | Node (React-style renderer) | alt-templates/frontend (team/frontend-custom) | yes |
+| regulatory-reporting | Python | alt-templates/team-overrides (team/reporting-hotfix) | no (pipeline only) |
+| notebook-executor | Python | none (non-build workload) | no (pipeline only) |
+| scenario-runner | Python | none (non-build workload) | no (pipeline only) |
+
+Run commands for each scaffold are in [docs/architecture.md](docs/architecture.md#running-the-scaffolds-locally).
 
 ## Documentation
 
+- [Architecture](docs/architecture.md) — how pipelines, templates, pools and validation fit together, with diagram
 - [Migration Context](docs/migration-context.md) — background on CI platform evolution
 - [Branch Usage Notes](docs/branch-usage-notes.md) — branch inventory and ownership
 - [Ownership Gaps](docs/ownership-gaps.md) — services with unclear ownership
@@ -77,12 +90,14 @@ See [docs/branch-usage-notes.md](docs/branch-usage-notes.md) for details.
 
 ## Migration Validation
 
-Every PR that adds or changes a file under `.github/workflows/` runs the
-`validate-migration` workflow, which lints the workflow with `actionlint`,
-compares it against the source ADO pipeline (`validation/scripts/validate_migration.py`),
-and posts a scorecard comment on the PR. `services/pricing-engine/` contains a
-runnable .NET 8 scaffold so a migrated `pricing-engine-ci` workflow produces a real
-build, test run and artifacts.
+Every PR to `main` that changes `.github/workflows/**`, `services/**/azure-pipelines.yml` or
+`validation/**` runs the `validate-migration` workflow. For each changed `*-ci.yml` workflow it
+lints with `actionlint`, compares it against the source ADO pipeline
+(`validation/scripts/validate_migration.py`), and posts a scorecard comment on the PR.
+Six services (`pricing-engine`, `portfolio-api`, `risk-batch`, `market-sim`, `ops-control-plane`,
+`frontend-workbench`) contain runnable scaffolds, so a migrated workflow produces a real build,
+test run and artifacts. Artifact and test-count baselines exist only for `pricing-engine`,
+`portfolio-api` and `risk-batch`.
 
 ## Integration Points
 
