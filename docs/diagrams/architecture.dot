@@ -1,0 +1,85 @@
+// Architecture of the shared CI platform repository (COG-GTM/azure-pipelines).
+// Edit this file, then run ./render.sh to regenerate architecture.png and architecture.svg.
+digraph shared_ci_platform {
+  graph [rankdir=TB, fontname="DejaVu Sans", fontsize=20, labelloc=t, nodesep=0.35, ranksep=0.55,
+         label="Shared CI platform: ADO pipelines, templates, and the GitHub Actions migration path", pad=0.3];
+  node  [shape=box, style="rounded,filled", fontname="DejaVu Sans", fontsize=16, fillcolor=white, color="#555555"];
+  edge  [fontname="DejaVu Sans", fontsize=13, color="#444444"];
+
+  subgraph cluster_ado {
+    label="Azure DevOps project contoso-financial / shared-ci-platform (18 registered pipelines)";
+    style="rounded,filled"; fillcolor="#eef4fb"; color="#4a78b5"; fontsize=18;
+
+    subgraph cluster_pipelines {
+      label="Pipeline YAML on main"; style="rounded,filled"; fillcolor="#dce8f7"; color="#4a78b5";
+      central  [label="Central-template builds  (services/)\npricing-engine .NET 8 @main\nportfolio-api Java 17 @master\nportfolio-api-canary @4 refs\nrisk-batch Python 3.11 @staging/preprod\nrisk-batch-legacy @legacy/master-support", fillcolor="#d5f0d5"];
+      alt      [label="Alternative templates  (services/)\nfrontend-workbench Node @team/frontend-custom\nregulatory-reporting Python @team/reporting-hotfix", fillcolor="#fff1c9"];
+      inline   [label="Inline builds  (services/)\nmarket-sim Rust\nops-control-plane Go 1.22", fillcolor="#d5f0d5"];
+      nonbuild [label="Non-build workloads\nservices/notebook-executor, services/scenario-runner\nnight-jobs/ (positions export, attestation backfill,\nVaR sweep), adhoc/bulk-reprocess-trades", fillcolor="#fde0dc"];
+      dead     [label="Dead\ndeprecated/ x2 (disabled)\nadhoc/onetime-data-migration (paused)", fillcolor="#eeeeee", fontcolor="#666666"];
+      {rank=same; central; alt; inline;}
+    }
+
+    subgraph cluster_templates {
+      label="Templates (resolved through resources.repositories ref)"; style="rounded,filled"; fillcolor="#e6e0f5"; color="#6a55a8";
+      branches  [label="8 long-lived template branches\nmain, master, staging/preprod,\nstaging/release-hardening, team/frontend-custom,\nteam/quant-experiments, team/reporting-hotfix,\nlegacy/master-support"];
+      templates [label="templates/\nbuild (dotnet, java, python, node, go, rust)\ntest/run-tests, release (standard, preprod,\nprod, hotfix), language/, legacy/"];
+      alttpl    [label="alt-templates/\nfrontend, data-science,\nteam-overrides"];
+      tools     [label="build-tools/\nscripts/*.py (publish, notify, attest,\nnormalize tests), compliance/, yaml/"];
+      {rank=same; templates; alttpl;}
+    }
+
+    subgraph cluster_pools {
+      label="Agent pools"; style="rounded,filled"; fillcolor="#f4f4f4"; color="#888888";
+      hosted [label="Azure Pipelines\n(hosted ubuntu-latest)"];
+      lbw    [label="linux-build-workers\n(self-hosted)"];
+      hmp    [label="high-memory-pool\n(self-hosted)"];
+      {rank=same; hosted; lbw; hmp;}
+    }
+  }
+
+  subgraph cluster_ext {
+    label="Downstream systems"; style="rounded,filled"; fillcolor="#fff7e6"; color="#c98a1b"; fontsize=18;
+    artifactory [label="Artifactory\n(artifact tracking)"];
+    d2          [label="D2\n(deployment tracking)"];
+    attest      [label="attestation-database\n(compliance metadata)"];
+    {rank=same; artifactory; d2; attest;}
+  }
+
+  subgraph cluster_gha {
+    label="GitHub (migration target and validation)"; style="rounded,filled"; fillcolor="#eaf7ee"; color="#2f8f4e"; fontsize=18;
+    pr        [label="Pull request touching .github/workflows/**,\nservices/**/azure-pipelines.yml or validation/**", shape=note, fillcolor="#ffffff"];
+    vm        [label=".github/workflows/validate-migration.yml\nactionlint + validate_migration.py\nper changed *-ci workflow"];
+    baselines [label="validation/baselines/\npricing-engine, portfolio-api, risk-batch"];
+    scaffolds [label="Runnable scaffolds in services/\npricing-engine, portfolio-api, risk-batch,\nfrontend-workbench, market-sim, ops-control-plane"];
+    report    [label="Scorecard PR comment\n+ migration-validation-report artifact", shape=note, fillcolor="#ffffff"];
+    {rank=same; pr; scaffolds;}
+    {rank=same; vm; baselines;}
+  }
+
+  central  -> templates [label="template:"];
+  alt      -> alttpl    [label="template:"];
+  alttpl   -> templates [label="forked from\n(frontend-build: Q2 2023)", style=dashed];
+  templates -> branches [label="pinned per pipeline", style=dashed, dir=back];
+  templates -> tools;
+  alttpl   -> tools;
+
+  central  -> hosted;
+  alt      -> hosted;
+  inline   -> hosted;
+  nonbuild -> lbw;
+  nonbuild -> hmp;
+
+  tools -> artifactory [label="publish_artifact.py"];
+  tools -> d2          [label="notify_release_orchestrator.py"];
+  tools -> attest      [label="generate_attestation.py,\ngenerate_metadata.py"];
+  nonbuild -> attest   [label="attestation backfill", style=dashed];
+
+  pr  -> vm;
+  vm  -> central   [label="reads source ADO YAML\n+ templates from branch refs", style=dashed, constraint=false];
+  vm  -> baselines [label="checks"];
+  vm  -> report;
+  pr -> scaffolds  [label="migrated *-ci workflows\nbuild and test these", style=dotted];
+  artifactory -> pr [style=invis];
+  d2 -> scaffolds [style=invis];
+}
