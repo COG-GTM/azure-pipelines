@@ -78,7 +78,7 @@ the other pipelines are ADO YAML only. Checked on a clean Ubuntu 24.04 machine.
 | Python | 3.10+ (`python3`; Ubuntu has no `python` command), PyYAML for `validate_migration.py` (`sudo apt-get install python3-yaml`, or `pip install pyyaml` in a venv) | risk-batch, validation scripts |
 | Rust/Cargo | 1.78 or newer (the lockfile is version 4; Ubuntu 24.04's apt `cargo` 1.75 fails, install with [rustup](https://rustup.rs)), plus a C linker (`sudo apt-get install build-essential`) | market-sim |
 | Go | 1.22+ | ops-control-plane |
-| Node.js | 18.1+ or 20 (`npm test` fails on 18.0, which lacks `--test`, and on Node 22+) | frontend-workbench |
+| Node.js + npm | Node 18.1+ or 20 (`npm test` fails on 18.0, which lacks `--test`, and on Node 22+); Ubuntu's apt `nodejs` has no `npm`, so also `sudo apt-get install npm` or use nvm | frontend-workbench |
 
 | Service | Command (from `services/<name>/`) |
 |---------|-----------------------------------|
@@ -91,11 +91,16 @@ the other pipelines are ADO YAML only. Checked on a clean Ubuntu 24.04 machine.
 
 To run the migration validator locally against a migrated workflow (from the repo root; `main` has no
 `*-ci.yml` workflows yet, so run it on a migration branch that adds one). Replace `<service>` with the
-service that branch migrates, such as `pricing-engine` or `market-sim`:
+service that branch migrates, such as `pricing-engine` or `market-sim`. The legacy risk-batch workflow
+is the exception: `.github/workflows/risk-batch-legacy.yml` is checked against
+`services/risk-batch/azure-pipelines-legacy.yml`.
 
 ```bash
 sudo apt-get install python3-yaml   # Ubuntu 24.04 blocks a system-wide `pip install`
-# or: python3 -m venv .venv && . .venv/bin/activate && pip install pyyaml
+# or: sudo apt-get install python3-venv && python3 -m venv .venv && . .venv/bin/activate && pip install pyyaml
+# Pipelines pin templates on other branches (e.g. risk-batch on staging/preprod); fetch them as CI does,
+# or the validator reads the checkout's copy instead.
+git fetch --no-tags origin '+refs/heads/*:refs/remotes/origin/*'
 python3 validation/scripts/validate_migration.py \
   --service <service> \
   --ado-pipeline services/<service>/azure-pipelines.yml \
@@ -103,8 +108,9 @@ python3 validation/scripts/validate_migration.py \
   --baselines validation/baselines --repo-root .
 ```
 
-Baselines exist only for pricing-engine, portfolio-api and risk-batch; for any other service the
-Artifact and Test Baseline checks fail (market-sim scores 5/7).
+Artifact baselines exist for pricing-engine, portfolio-api and risk-batch; only pricing-engine has a
+test-count baseline. So portfolio-api and risk-batch fail the Test Baseline check, and other services
+fail both baseline checks (market-sim scores 5/7).
 
 ## Documentation
 
