@@ -64,7 +64,8 @@ checkout's copy of the template.
 # Full migration scorecard for one service (what the validate-migration workflow runs;
 # needs a migrated workflow, which main does not have yet). Replace <service> with the
 # service the branch migrates, such as pricing-engine or market-sim. For risk-batch-legacy.yml use
-# --ado-pipeline services/risk-batch/azure-pipelines-legacy.yml.
+# --ado-pipeline services/risk-batch/azure-pipelines-legacy.yml. On older migration branches whose
+# validator has no --repo-root option, drop that flag.
 python3 validation/scripts/validate_migration.py \
   --service <service> \
   --ado-pipeline services/<service>/azure-pipelines.yml \

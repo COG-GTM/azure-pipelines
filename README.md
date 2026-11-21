@@ -108,7 +108,8 @@ python3 validation/scripts/validate_migration.py \
   --baselines validation/baselines --repo-root .
 ```
 
-`--baselines` reads the checked-out branch. Each migration branch adds its own service's baselines (the
+Older migration branches (the first round, such as `devin/1788896538-market-sim-ci-gha-migration`) carry
+a validator without `--repo-root`; drop that flag there. `--baselines` reads the checked-out branch. Each migration branch adds its own service's baselines (the
 market-sim branch scores 7/7). On `main` only pricing-engine has both baselines, so a workflow checked
 against main's baselines fails the missing checks (market-sim scores 5/7 that way).
 
