@@ -75,10 +75,10 @@ the other pipelines are ADO YAML only. Checked on a clean Ubuntu 24.04 machine.
 |------|---------|---------|
 | .NET SDK | 8.0 | pricing-engine |
 | JDK + Maven | JDK 17 or newer (`JAVA_HOME` must point at a full JDK), Maven 3.8+ | portfolio-api |
-| Python | 3.10+ (`python3`; Ubuntu has no `python` command), PyYAML for `validate_migration.py` | risk-batch, validation scripts |
-| Rust/Cargo | 1.78 or newer (the lockfile is version 4; Ubuntu 24.04's apt `cargo` 1.75 fails, install with [rustup](https://rustup.rs)) | market-sim |
+| Python | 3.10+ (`python3`; Ubuntu has no `python` command), PyYAML for `validate_migration.py` (`sudo apt-get install python3-yaml`, or `pip install pyyaml` in a venv) | risk-batch, validation scripts |
+| Rust/Cargo | 1.78 or newer (the lockfile is version 4; Ubuntu 24.04's apt `cargo` 1.75 fails, install with [rustup](https://rustup.rs)), plus a C linker (`sudo apt-get install build-essential`) | market-sim |
 | Go | 1.22+ | ops-control-plane |
-| Node.js | 18 or 20 (`npm test` fails on Node 22+) | frontend-workbench |
+| Node.js | 18.1+ or 20 (`npm test` fails on 18.0, which lacks `--test`, and on Node 22+) | frontend-workbench |
 
 | Service | Command (from `services/<name>/`) |
 |---------|-----------------------------------|
@@ -87,19 +87,24 @@ the other pipelines are ADO YAML only. Checked on a clean Ubuntu 24.04 machine.
 | risk-batch | `python3 -m unittest discover -s tests -p "test_*.py" -v` |
 | market-sim | `cargo run --release` |
 | ops-control-plane | `go run ./cmd/server` (port `PORT`, default 8080; check `/healthz`) |
-| frontend-workbench | `npm ci && npm run lint && npm test -- --ci --coverage` |
+| frontend-workbench | `npm ci && npm run lint && npm test` (CI's `--ci --coverage` flags are ignored; no coverage report is produced) |
 
 To run the migration validator locally against a migrated workflow (from the repo root; `main` has no
-`*-ci.yml` workflows yet, so run it on a migration branch that adds one):
+`*-ci.yml` workflows yet, so run it on a migration branch that adds one). Replace `<service>` with the
+service that branch migrates, such as `pricing-engine` or `market-sim`:
 
 ```bash
-python3 -m pip install pyyaml   # or: sudo apt-get install python3-yaml
+sudo apt-get install python3-yaml   # Ubuntu 24.04 blocks a system-wide `pip install`
+# or: python3 -m venv .venv && . .venv/bin/activate && pip install pyyaml
 python3 validation/scripts/validate_migration.py \
-  --service pricing-engine \
-  --ado-pipeline services/pricing-engine/azure-pipelines.yml \
-  --gha-workflow .github/workflows/pricing-engine-ci.yml \
+  --service <service> \
+  --ado-pipeline services/<service>/azure-pipelines.yml \
+  --gha-workflow .github/workflows/<service>-ci.yml \
   --baselines validation/baselines --repo-root .
 ```
+
+Baselines exist only for pricing-engine, portfolio-api and risk-batch; for any other service the
+Artifact and Test Baseline checks fail (market-sim scores 5/7).
 
 ## Documentation
 

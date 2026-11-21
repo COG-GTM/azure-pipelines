@@ -50,17 +50,19 @@ Each service should have:
 
 ## Running Validation
 
-The scripts need Python 3 (`python3` on Ubuntu). `validate_migration.py` also needs PyYAML
-(`python3 -m pip install pyyaml` or `sudo apt-get install python3-yaml`); the other scripts use
+The scripts need Python 3.10 or newer (`python3` on Ubuntu; `validate_migration.py` exits on 3.9).
+`validate_migration.py` also needs PyYAML: `sudo apt-get install python3-yaml`, or `pip install pyyaml`
+inside a virtual environment (Ubuntu 24.04 refuses a system-wide `pip install`). The other scripts use
 only the standard library.
 
 ```bash
 # Full migration scorecard for one service (what the validate-migration workflow runs;
-# needs a migrated workflow, which main does not have yet)
+# needs a migrated workflow, which main does not have yet). Replace <service> with the
+# service the branch migrates, such as pricing-engine or market-sim.
 python3 validation/scripts/validate_migration.py \
-  --service pricing-engine \
-  --ado-pipeline services/pricing-engine/azure-pipelines.yml \
-  --gha-workflow .github/workflows/pricing-engine-ci.yml \
+  --service <service> \
+  --ado-pipeline services/<service>/azure-pipelines.yml \
+  --gha-workflow .github/workflows/<service>-ci.yml \
   --baselines validation/baselines --repo-root .
 
 # Compare artifacts for a single service
