@@ -66,6 +66,53 @@ See [docs/branch-usage-notes.md](docs/branch-usage-notes.md) for details.
 | notebook-executor | Python | none (non-build workload) |
 | scenario-runner | Python | none (non-build workload) |
 
+## Quickstart
+
+There is no top-level build. Each runnable scaffold under `services/` builds on its own;
+the other pipelines are ADO YAML only. Checked on a clean Ubuntu 24.04 machine.
+
+| Tool | Version | Used by |
+|------|---------|---------|
+| .NET SDK | 8.0 | pricing-engine |
+| JDK + Maven | JDK 17 or newer (`JAVA_HOME` must point at a full JDK), Maven 3.8+ | portfolio-api |
+| Python | 3.9+ (`python3`; Ubuntu has no `python` command); `validate_migration.py` needs 3.10+ and PyYAML (`sudo apt-get install python3-yaml`, or `pip install pyyaml` in a venv) | risk-batch, validation scripts |
+| Rust/Cargo | 1.78 or newer (the lockfile is version 4; Ubuntu 24.04's apt `cargo` 1.75 fails, install with [rustup](https://rustup.rs)), plus a C linker (`sudo apt-get install build-essential`) | market-sim |
+| Go | 1.22+ | ops-control-plane |
+| Node.js + npm | Node 18.1+ or 20 (`npm test` fails on 18.0, which lacks `--test`, and on Node 22+); Ubuntu's apt `nodejs` has no `npm`, so also `sudo apt-get install npm` or use nvm | frontend-workbench |
+
+| Service | Command (from `services/<name>/`) |
+|---------|-----------------------------------|
+| pricing-engine | `dotnet test PricingEngine.sln`, then `dotnet run --project src/PricingEngine` (http://localhost:5000/api/pricing/health) |
+| portfolio-api | `mvn -B -DskipTests=false package` |
+| risk-batch | `python3 -m unittest discover -s tests -p "test_*.py" -v` |
+| market-sim | `cargo run --release` |
+| ops-control-plane | `go run ./cmd/server` (port `PORT`, default 8080, on all interfaces; check `/healthz`) |
+| frontend-workbench | `npm ci && npm run lint && npm test` (CI's `--ci --coverage` flags are ignored; no coverage report is produced) |
+
+To run the migration validator locally against a migrated workflow (from the repo root; `main` has no
+`*-ci.yml` workflows yet, so run it on a migration branch that adds one). Replace `<service>` with the
+service that branch migrates, such as `pricing-engine` or `market-sim`. The legacy risk-batch workflow
+is the exception: `.github/workflows/risk-batch-legacy.yml` is checked against
+`services/risk-batch/azure-pipelines-legacy.yml`.
+
+```bash
+sudo apt-get install python3-yaml   # Ubuntu 24.04 blocks a system-wide `pip install`
+# or: sudo apt-get install python3-venv && python3 -m venv .venv && . .venv/bin/activate && pip install pyyaml
+# Pipelines pin templates on other branches (e.g. risk-batch on staging/preprod); fetch them as CI does,
+# or the validator reads the checkout's copy instead.
+git fetch --no-tags origin '+refs/heads/*:refs/remotes/origin/*'
+python3 validation/scripts/validate_migration.py \
+  --service <service> \
+  --ado-pipeline services/<service>/azure-pipelines.yml \
+  --gha-workflow .github/workflows/<service>-ci.yml \
+  --baselines validation/baselines --repo-root .
+```
+
+Older migration branches (the first round, such as `devin/1788896538-market-sim-ci-gha-migration`) carry
+a validator without `--repo-root`; drop that flag there. `--baselines` reads the checked-out branch. Each migration branch adds its own service's baselines (the
+market-sim branch scores 7/7). On `main` only pricing-engine has both baselines, so a workflow checked
+against main's baselines fails the missing checks (market-sim scores 5/7 that way).
+
 ## Documentation
 
 - [Migration Context](docs/migration-context.md) — background on CI platform evolution
