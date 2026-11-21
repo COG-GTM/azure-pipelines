@@ -66,6 +66,41 @@ See [docs/branch-usage-notes.md](docs/branch-usage-notes.md) for details.
 | notebook-executor | Python | none (non-build workload) |
 | scenario-runner | Python | none (non-build workload) |
 
+## Quickstart
+
+There is no top-level build. Each runnable scaffold under `services/` builds on its own;
+the other pipelines are ADO YAML only. Checked on a clean Ubuntu 24.04 machine.
+
+| Tool | Version | Used by |
+|------|---------|---------|
+| .NET SDK | 8.0 | pricing-engine |
+| JDK + Maven | JDK 17 or newer (`JAVA_HOME` must point at a full JDK), Maven 3.8+ | portfolio-api |
+| Python | 3.10+ (`python3`; Ubuntu has no `python` command), PyYAML for `validate_migration.py` | risk-batch, validation scripts |
+| Rust/Cargo | 1.78 or newer (the lockfile is version 4; Ubuntu 24.04's apt `cargo` 1.75 fails, install with [rustup](https://rustup.rs)) | market-sim |
+| Go | 1.22+ | ops-control-plane |
+| Node.js | 18 or 20 (`npm test` fails on Node 22+) | frontend-workbench |
+
+| Service | Command (from `services/<name>/`) |
+|---------|-----------------------------------|
+| pricing-engine | `dotnet test PricingEngine.sln`, then `dotnet run --project src/PricingEngine` (http://localhost:5000/api/pricing/health) |
+| portfolio-api | `mvn -B -DskipTests=false package` |
+| risk-batch | `python3 -m unittest discover -s tests -p "test_*.py" -v` |
+| market-sim | `cargo run --release` |
+| ops-control-plane | `go run ./cmd/server` (port `PORT`, default 8080; check `/healthz`) |
+| frontend-workbench | `npm ci && npm run lint && npm test -- --ci --coverage` |
+
+To run the migration validator locally against a migrated workflow (from the repo root; `main` has no
+`*-ci.yml` workflows yet, so run it on a migration branch that adds one):
+
+```bash
+python3 -m pip install pyyaml   # or: sudo apt-get install python3-yaml
+python3 validation/scripts/validate_migration.py \
+  --service pricing-engine \
+  --ado-pipeline services/pricing-engine/azure-pipelines.yml \
+  --gha-workflow .github/workflows/pricing-engine-ci.yml \
+  --baselines validation/baselines --repo-root .
+```
+
 ## Documentation
 
 - [Migration Context](docs/migration-context.md) — background on CI platform evolution

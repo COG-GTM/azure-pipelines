@@ -50,18 +50,30 @@ Each service should have:
 
 ## Running Validation
 
+The scripts need Python 3 (`python3` on Ubuntu). `validate_migration.py` also needs PyYAML
+(`python3 -m pip install pyyaml` or `sudo apt-get install python3-yaml`); the other scripts use
+only the standard library.
+
 ```bash
+# Full migration scorecard for one service (what the validate-migration workflow runs;
+# needs a migrated workflow, which main does not have yet)
+python3 validation/scripts/validate_migration.py \
+  --service pricing-engine \
+  --ado-pipeline services/pricing-engine/azure-pipelines.yml \
+  --gha-workflow .github/workflows/pricing-engine-ci.yml \
+  --baselines validation/baselines --repo-root .
+
 # Compare artifacts for a single service
-python validation/scripts/compare_artifacts.py \
+python3 validation/scripts/compare_artifacts.py \
   --baseline validation/baselines/pricing-engine/expected-artifacts.json \
   --artifacts /path/to/gha/artifacts
 
 # Compare test counts
-python validation/scripts/compare_test_counts.py \
+python3 validation/scripts/compare_test_counts.py \
   --baseline validation/baselines/pricing-engine/test-counts.json \
   --actual /path/to/gha/test-results.json
 
 # Generate summary report
-python validation/scripts/summarize_build_results.py \
+python3 validation/scripts/summarize_build_results.py \
   --baselines validation/baselines/
 ```
