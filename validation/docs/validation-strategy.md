@@ -50,7 +50,7 @@ Each service should have:
 
 ## Running Validation
 
-The scripts need Python 3.10 or newer (`python3` on Ubuntu; `validate_migration.py` exits on 3.9).
+The scripts need Python 3.9 or newer (`python3` on Ubuntu); `validate_migration.py` needs 3.10 or newer and exits on 3.9.
 `validate_migration.py` also needs PyYAML: `sudo apt-get install python3-yaml`, or `pip install pyyaml`
 inside a virtual environment (Ubuntu 24.04 refuses a system-wide `pip install`; `python3 -m venv` needs
 `sudo apt-get install python3-venv`). The other scripts use only the standard library.

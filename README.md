@@ -75,7 +75,7 @@ the other pipelines are ADO YAML only. Checked on a clean Ubuntu 24.04 machine.
 |------|---------|---------|
 | .NET SDK | 8.0 | pricing-engine |
 | JDK + Maven | JDK 17 or newer (`JAVA_HOME` must point at a full JDK), Maven 3.8+ | portfolio-api |
-| Python | 3.10+ (`python3`; Ubuntu has no `python` command), PyYAML for `validate_migration.py` (`sudo apt-get install python3-yaml`, or `pip install pyyaml` in a venv) | risk-batch, validation scripts |
+| Python | 3.9+ (`python3`; Ubuntu has no `python` command); `validate_migration.py` needs 3.10+ and PyYAML (`sudo apt-get install python3-yaml`, or `pip install pyyaml` in a venv) | risk-batch, validation scripts |
 | Rust/Cargo | 1.78 or newer (the lockfile is version 4; Ubuntu 24.04's apt `cargo` 1.75 fails, install with [rustup](https://rustup.rs)), plus a C linker (`sudo apt-get install build-essential`) | market-sim |
 | Go | 1.22+ | ops-control-plane |
 | Node.js + npm | Node 18.1+ or 20 (`npm test` fails on 18.0, which lacks `--test`, and on Node 22+); Ubuntu's apt `nodejs` has no `npm`, so also `sudo apt-get install npm` or use nvm | frontend-workbench |
@@ -86,7 +86,7 @@ the other pipelines are ADO YAML only. Checked on a clean Ubuntu 24.04 machine.
 | portfolio-api | `mvn -B -DskipTests=false package` |
 | risk-batch | `python3 -m unittest discover -s tests -p "test_*.py" -v` |
 | market-sim | `cargo run --release` |
-| ops-control-plane | `go run ./cmd/server` (port `PORT`, default 8080; check `/healthz`) |
+| ops-control-plane | `go run ./cmd/server` (port `PORT`, default 8080, on all interfaces; check `/healthz`) |
 | frontend-workbench | `npm ci && npm run lint && npm test` (CI's `--ci --coverage` flags are ignored; no coverage report is produced) |
 
 To run the migration validator locally against a migrated workflow (from the repo root; `main` has no
@@ -108,9 +108,9 @@ python3 validation/scripts/validate_migration.py \
   --baselines validation/baselines --repo-root .
 ```
 
-Artifact baselines exist for pricing-engine, portfolio-api and risk-batch; only pricing-engine has a
-test-count baseline. So portfolio-api and risk-batch fail the Test Baseline check, and other services
-fail both baseline checks (market-sim scores 5/7).
+`--baselines` reads the checked-out branch. Each migration branch adds its own service's baselines (the
+market-sim branch scores 7/7). On `main` only pricing-engine has both baselines, so a workflow checked
+against main's baselines fails the missing checks (market-sim scores 5/7 that way).
 
 ## Documentation
 
